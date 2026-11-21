@@ -239,7 +239,7 @@
           Week 11 Sunday Matchups & Standings
         </h2>
         <p class="text-xs sm:text-sm text-sub leading-relaxed mb-4">
-          Submit all of your Sunday picks ahead of <strong>1 hour before the first Sunday game</strong>. All picks for the entire day lock together at that cutoff and remain hidden until then.
+          Submit all of your Sunday picks ahead of <strong>1 hour before the first Sunday game</strong>. PINs must be entered manually each session and are never cached locally.
         </p>
         <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
           <span id="completion-pill" class="border border-main font-bold px-3 py-1.5 rounded-lg text-main" style="background: var(--bg-pill);">
@@ -347,7 +347,7 @@
       <div class="p-4 sm:p-5 border-b divide-custom flex items-center justify-between">
         <div>
           <h3 id="modal-title" class="text-base sm:text-xl font-black text-main">Submit Week 11 Sunday Picks</h3>
-          <p id="modal-subtitle" class="text-xs text-sub">Select your name and enter or create your personal PIN (4+ chars)</p>
+          <p id="modal-subtitle" class="text-xs text-sub">Select your name and enter your personal PIN manually (4+ chars)</p>
         </div>
         <button onclick="closePickerModal()" class="text-sub hover:text-main p-2 rounded-lg cursor-pointer">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -373,6 +373,7 @@
               type="password"
               inputmode="numeric"
               maxlength="12"
+              autocomplete="off"
               placeholder="Enter PIN (4+ chars)"
               onkeydown="if(event.key==='Enter') verifySelectedPlayerPin()"
               class="border border-main focus:outline-none rounded-xl px-3.5 py-2 text-sm font-bold tracking-widest text-main w-52"
@@ -413,9 +414,8 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "nfl_pickem_2026_v6_sunday_slate_lock";
+    const STORAGE_KEY = "nfl_pickem_2026_v8_week10_captured";
     const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
-    const PIN_CACHE_KEY = "nfl_pickem_claimed_pins_v1";
     const LOCK_OFFSET_MINUTES = 60;
     const GAME_TIMEZONE = "America/New_York";
 
@@ -677,7 +677,27 @@
       { week: 18, label: "Jan 10, 2027",  start: "2027-01-08", end: "2027-01-16" }
     ];
 
+    const WEEK_10_RESULTS = [
+      { away: "New England Patriots", home: "Detroit Lions", winner: "Detroit Lions" },
+      { away: "Buffalo Bills", home: "New York Jets", winner: "Buffalo Bills" },
+      { away: "Miami Dolphins", home: "Indianapolis Colts", winner: "Indianapolis Colts" },
+      { away: "Kansas City Chiefs", home: "Atlanta Falcons", winner: "Kansas City Chiefs" },
+      { away: "Minnesota Vikings", home: "Green Bay Packers", winner: "Minnesota Vikings" },
+      { away: "Jacksonville Jaguars", home: "Tennessee Titans", winner: "Jacksonville Jaguars" },
+      { away: "Houston Texans", home: "Cleveland Browns", winner: "Cleveland Browns" },
+      { away: "Carolina Panthers", home: "New Orleans Saints", winner: "Carolina Panthers" },
+      { away: "Los Angeles Rams", home: "Arizona Cardinals", winner: "Los Angeles Rams" },
+      { away: "Seattle Seahawks", home: "Las Vegas Raiders", winner: "Seattle Seahawks" },
+      { away: "San Francisco 49ers", home: "Dallas Cowboys", winner: "San Francisco 49ers" },
+      { away: "Pittsburgh Steelers", home: "Cincinnati Bengals", winner: "Cincinnati Bengals" }
+    ];
+
     const FALLBACK_MATCHUPS_BY_WEEK = {
+      10: WEEK_10_RESULTS.map(m => ({
+        away: m.away,
+        home: m.home,
+        kickoff: "2026-11-15T18:00:00Z"
+      })),
       11: [
         { away: "New Orleans Saints", home: "Chicago Bears", kickoff: "2026-11-22T18:00:00Z" },
         { away: "Tampa Bay Buccaneers", home: "Detroit Lions", kickoff: "2026-11-22T18:00:00Z" },
@@ -693,12 +713,35 @@
       ]
     };
 
+    // Captured post-Week 10 standings & Week 10 win counts
     const INITIAL_PRIOR_WINS = {
-      "V": 89, "Abby": 87, "Mom": 86, "Dad": 85, "Hayden": 81, "Adam": 77, "Hunter": 75
+      "V": 98,
+      "Abby": 96,
+      "Mom": 96,
+      "Dad": 95,
+      "Hayden": 89,
+      "Adam": 86,
+      "Hunter": 81
     };
 
     const INITIAL_PREV_RANKS = {
-      "V": 1, "Abby": 2, "Mom": 3, "Dad": 4, "Hayden": 5, "Adam": 6, "Hunter": 7
+      "V": 1,
+      "Abby": 2,
+      "Mom": 2,
+      "Dad": 4,
+      "Hayden": 5,
+      "Adam": 6,
+      "Hunter": 7
+    };
+
+    const WEEK_10_CAPTURED_WINS = {
+      "V": 9,
+      "Abby": 9,
+      "Mom": 10,
+      "Dad": 10,
+      "Hayden": 8,
+      "Adam": 9,
+      "Hunter": 6
     };
 
     function isSundayGame(game) {
@@ -747,6 +790,7 @@
         activeWeek: fallbackWeek,
         priorWins: { ...INITIAL_PRIOR_WINS },
         prevRanks: { ...INITIAL_PREV_RANKS },
+        week10Wins: { ...WEEK_10_CAPTURED_WINS },
         picksByWeek: {}
       };
       try {
@@ -758,6 +802,7 @@
           ...parsed,
           priorWins: { ...INITIAL_PRIOR_WINS, ...(parsed.priorWins || {}) },
           prevRanks: { ...INITIAL_PREV_RANKS, ...(parsed.prevRanks || {}) },
+          week10Wins: { ...WEEK_10_CAPTURED_WINS, ...(parsed.week10Wins || {}) },
           picksByWeek: parsed.picksByWeek || {}
         };
       } catch {
@@ -775,15 +820,13 @@
     let modalSelectedPlayer = "Dad";
     let unlockedPlayerThisSession = null;
     let modalDraftPicks = {};
-    let lastVerifiedPinForPlayer = {};
-    let claimedPinsByPlayer = JSON.parse(localStorage.getItem(PIN_CACHE_KEY) || "{}");
+    let sessionVerifiedPinByPlayer = {};
+    let remotePinStatusByPlayer = {};
 
     function getMatchupKey(away, home) {
       return `${away} @ ${home}`;
     }
 
-    // Returns lock timestamp: 1 hour before the EARLIEST Sunday game in the week.
-    // All Sunday games share this single lock so picks are submitted for the whole day upfront.
     function getSundaySlateLockMs() {
       const sundayKickoffs = currentWeekMatchups
         .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
@@ -870,6 +913,27 @@
       const res = await fetch(`${SHARED_API_URL}?week=${encodeURIComponent(weekNum)}&_t=${Date.now()}`);
       if (!res.ok) throw new Error(`Backend HTTP ${res.status}`);
       return await res.json();
+    }
+
+    async function verifyPinWithBackend(player, pin) {
+      if (!SHARED_API_URL) return { ok: true, supported: true };
+      const res = await fetch(SHARED_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "verifyPin",
+          player,
+          pin
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data && typeof data.ok === "boolean") {
+        if (!data.ok && /unknown action|invalid action|unsupported action/i.test(String(data.error || ""))) {
+          return { ok: true, supported: false };
+        }
+        return { ...data, supported: true };
+      }
+      return { ok: true, supported: false };
     }
 
     async function submitPicksToBackend(weekNum, player, pin, picksMap) {
@@ -1069,12 +1133,7 @@
               saveAppState();
             }
             if (sharedData.pinStatus) {
-              Object.keys(sharedData.pinStatus).forEach(p => {
-                if (sharedData.pinStatus[p] && !claimedPinsByPlayer[p]) {
-                  claimedPinsByPlayer[p] = "__REMOTE_SET__";
-                }
-              });
-              localStorage.setItem(PIN_CACHE_KEY, JSON.stringify(claimedPinsByPlayer));
+              remotePinStatusByPlayer = { ...sharedData.pinStatus };
             }
           }
         } catch (err) {
@@ -1083,6 +1142,9 @@
       }
 
       updateLockCountdownUI();
+      if (!document.getElementById("picker-modal").classList.contains("hidden")) {
+        updatePinGateUI();
+      }
       renderAll();
 
       const now = new Date();
@@ -1099,10 +1161,12 @@
       let playersWithAnyPick = 0;
 
       PLAYERS.forEach(p => {
+        const basePrior = appState.priorWins[p] ?? INITIAL_PRIOR_WINS[p] ?? 0;
+        const w10Wins = appState.week10Wins?.[p] ?? WEEK_10_CAPTURED_WINS[p] ?? 0;
         stats[p] = {
-          priorWins: appState.priorWins[p] || 0,
+          priorWins: appState.activeWeek === 10 ? Math.max(0, basePrior - w10Wins) : basePrior,
           prevRank: appState.prevRanks[p] || PLAYERS.length,
-          weekWins: 0,
+          weekWins: appState.activeWeek === 10 ? w10Wins : 0,
           pickedCount: 0
         };
       });
@@ -1121,7 +1185,7 @@
               counts[pick] = (counts[pick] || 0) + 1;
               entries.push({ player: p, pick });
 
-              if (!game.isTied && game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
+              if (appState.activeWeek !== 10 && !game.isTied && game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
                 stats[p].weekWins += 1;
               }
             }
@@ -1141,476 +1205,4 @@
         if (stats[p].pickedCount > 0) playersWithAnyPick += 1;
       });
 
-      document.getElementById("completion-pill").innerText =
-        `${playersWithAnyPick} / ${PLAYERS.length} Players Picked (Week ${appState.activeWeek})`;
-
-      return { stats, loneWolves };
-    }
-
-    function renderAll() {
-      const { stats, loneWolves } = computeWeekStats();
-      renderLeaderboard(stats);
-      renderBadges(stats, loneWolves);
-      renderMatchupsTable();
-    }
-
-    function renderLeaderboard(stats) {
-      const tbody = document.getElementById("leaderboard-body");
-      tbody.innerHTML = "";
-
-      const ranked = [...PLAYERS]
-        .map(player => ({
-          player,
-          priorWins: stats[player].priorWins,
-          prevRank: stats[player].prevRank,
-          weekWins: stats[player].weekWins,
-          totalWins: stats[player].priorWins + stats[player].weekWins
-        }))
-        .sort((a, b) => b.totalWins - a.totalWins || a.prevRank - b.prevRank);
-
-      const lowestTotal = ranked[ranked.length - 1]?.totalWins ?? 0;
-
-      let currentRank = 1;
-      ranked.forEach((row, idx) => {
-        if (idx > 0 && row.totalWins < ranked[idx - 1].totalWins) {
-          currentRank = idx + 1;
-        }
-
-        const rankDelta = row.prevRank - currentRank;
-        let moveBadge = `<span class="text-xs font-bold text-sub px-2 py-0.5 rounded-full border border-main" style="background: var(--bg-pill);">— 0</span>`;
-        if (rankDelta > 0) {
-          moveBadge = `<span class="text-xs font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">▲ +${rankDelta}</span>`;
-        } else if (rankDelta < 0) {
-          moveBadge = `<span class="text-xs font-black text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 rounded-full">▼ ${rankDelta}</span>`;
-        }
-
-        let rankBadge = `<span class="text-xs font-bold text-sub">#${currentRank}</span>`;
-        if (currentRank === 1) {
-          rankBadge = `<span class="accent-btn text-xs font-black px-2.5 py-1 rounded-full inline-block">1ST</span>`;
-        } else if (currentRank === 2) {
-          rankBadge = `<span class="bg-slate-500/25 text-main text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">2ND</span>`;
-        } else if (currentRank === 3) {
-          rankBadge = `<span class="bg-amber-500/20 text-amber-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">3RD</span>`;
-        } else if (row.totalWins === lowestTotal && ranked.length > 1) {
-          rankBadge = `<span class="bg-rose-500/15 text-rose-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">LAST</span>`;
-        }
-
-        const tr = document.createElement("tr");
-        tr.className = "hover:opacity-95 transition-colors";
-        tr.innerHTML = `
-          <td class="py-3 px-3 sm:px-4 text-center">${rankBadge}</td>
-          <td class="py-3 px-3 sm:px-4 text-center">${moveBadge}</td>
-          <td class="py-3 px-4 font-bold text-main text-sm sm:text-base">${row.player}</td>
-          <td class="py-3 px-3 text-center text-sub font-semibold">#${row.prevRank}</td>
-          <td class="py-3 px-3 text-center text-sub">${row.priorWins}</td>
-          <td class="py-3 px-3 text-center font-extrabold text-main">+${row.weekWins}</td>
-          <td class="py-3 px-4 text-center font-black text-main text-base sm:text-lg">${row.totalWins}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderBadges(stats, loneWolves) {
-      const container = document.getElementById("badges-container");
-      const sortedSeason = [...PLAYERS].sort((a, b) => (stats[b].priorWins + stats[b].weekWins) - (stats[a].priorWins + stats[a].weekWins));
-      const leader = sortedSeason[0];
-      const leaderPts = stats[leader].priorWins + stats[leader].weekWins;
-
-      const sortedWeek = [...PLAYERS].sort((a, b) => stats[b].weekWins - stats[a].weekWins);
-      const weekTop = sortedWeek[0];
-
-      const biggestClimber = [...PLAYERS].sort((a, b) => {
-        const rankA = sortedSeason.indexOf(a) + 1;
-        const rankB = sortedSeason.indexOf(b) + 1;
-        return (stats[b].prevRank - rankB) - (stats[a].prevRank - rankA);
-      })[0];
-
-      const loneWolfHtml = loneWolves.length
-        ? loneWolves.slice(0, 3).map(lw => `<b>${lw.player}</b> (${lw.pick})`).join(", ")
-        : "Reveals after Sunday lock";
-
-      container.innerHTML = `
-        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
-          <i class="fa-solid fa-crown text-xl text-amber-400"></i>
-          <div>
-            <div class="text-xs text-sub font-semibold">Current Leader</div>
-            <div class="text-sm sm:text-base font-extrabold text-main">${leader} (${leaderPts} Wins)</div>
-          </div>
-        </div>
-        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
-          <i class="fa-solid fa-arrow-trend-up text-xl text-emerald-400"></i>
-          <div>
-            <div class="text-xs text-sub font-semibold">Week ${appState.activeWeek} Top / Mover</div>
-            <div class="text-sm sm:text-base font-extrabold text-main">${weekTop} (+${stats[weekTop].weekWins}) • ${biggestClimber}</div>
-          </div>
-        </div>
-        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
-          <i class="fa-solid fa-user-secret text-xl text-sub"></i>
-          <div>
-            <div class="text-xs text-sub font-semibold">Solo Picks</div>
-            <div class="text-xs font-medium text-main mt-0.5">${loneWolfHtml}</div>
-          </div>
-        </div>
-      `;
-    }
-
-    function renderMatchupsTable() {
-      const headRow = document.getElementById("table-head-row");
-      const tbody = document.getElementById("matchups-body");
-      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
-      const visiblePlayers = PLAYERS.filter(p => selectedPlayersFilter.has(p));
-      const slateLocked = isSlateLocked();
-
-      document.getElementById("visibility-helper-text").innerText =
-        "Sunday matchups only • All picks stay hidden until 1 hour before the first Sunday kickoff.";
-
-      headRow.innerHTML = `
-        <th class="py-3.5 px-3 w-[200px] sm:w-[250px] sticky-col z-20">Matchup</th>
-        <th class="py-3.5 px-3 w-40 text-center">Score / Status / Win %</th>
-        <th class="py-3.5 px-2 w-28 text-center">Consensus</th>
-        ${visiblePlayers.map(p => `<th class="py-3.5 px-2 text-center w-24">${p}</th>`).join("")}
-      `;
-
-      tbody.innerHTML = "";
-
-      currentWeekMatchups.forEach(game => {
-        const key = getMatchupKey(game.away, game.home);
-        const gamePicks = weekPicks[key] || {};
-
-        const counts = {};
-        PLAYERS.forEach(p => {
-          if (gamePicks[p]) counts[gamePicks[p]] = (counts[gamePicks[p]] || 0) + 1;
-        });
-        const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-
-        let consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-sub" style="background: var(--bg-pill);">Open</span>`;
-        if (sortedCounts.length > 0) {
-          const totalSubmitted = Object.keys(gamePicks).length;
-          if (!slateLocked) {
-            consensusBadge = `<span class="bg-amber-500/15 text-amber-400 border border-amber-500/35 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${totalSubmitted}/${PLAYERS.length} In</span>`;
-          } else {
-            const [topTeam, topCount] = sortedCounts[0];
-            if (totalSubmitted === PLAYERS.length && sortedCounts.length === 1) {
-              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap accent-btn">${topTeam.split(" ").pop()} ${topCount}-0</span>`;
-            } else {
-              const secondCount = sortedCounts[1]?.[1] || 0;
-              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-main" style="background: var(--bg-pill);">${topCount}-${secondCount} Split</span>`;
-            }
-          }
-        }
-
-        let statusBadgeClass = "border border-main text-sub";
-        let liveDot = "";
-        if (game.statusState === "in") {
-          statusBadgeClass = "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold";
-          liveDot = `<span class="live-pulse mr-1"></span>`;
-        } else if (game.statusState === "post") {
-          statusBadgeClass = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold";
-        }
-
-        const awayLogo = game.awayLogo ? `<img src="${game.awayLogo}" class="w-4 h-4 object-contain inline-block mr-1" alt="">` : "";
-        const homeLogo = game.homeLogo ? `<img src="${game.homeLogo}" class="w-4 h-4 object-contain inline-block ml-1" alt="">` : "";
-
-        const playerCells = visiblePlayers.map(player => {
-          const pick = gamePicks[player];
-          if (!pick) {
-            return `<td class="py-3 px-1.5 text-center"><div class="py-1.5 px-1.5 pick-empty text-xs">—</div></td>`;
-          }
-
-          if (!slateLocked) {
-            return `
-              <td class="py-3 px-1.5 text-center">
-                <div class="py-1.5 px-1.5 pick-hidden text-[10px] sm:text-xs flex items-center justify-center gap-1 whitespace-nowrap">
-                  <i class="fa-solid fa-lock text-[9px]"></i><span>Hidden</span>
-                </div>
-              </td>
-            `;
-          }
-
-          let cls = "pick-neutral";
-          let icon = "";
-          if (game.statusState === "in" || game.statusState === "post") {
-            if (game.isTied) {
-              cls = "pick-tied";
-              icon = `<i class="fa-solid fa-minus text-[9px] ml-1 opacity-70"></i>`;
-            } else if (game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
-              cls = "pick-leading";
-              icon = game.statusState === "post" ? `<i class="fa-solid fa-check ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-up ml-1"></i>`;
-            } else if (game.losingTeam && checkTeamMatch(game.losingTeam, pick)) {
-              cls = "pick-losing";
-              icon = game.statusState === "post" ? `<i class="fa-solid fa-xmark ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-down ml-1"></i>`;
-            }
-          }
-
-          const shortLabel = pick.split(" ").pop();
-          return `
-            <td class="py-3 px-1.5 text-center">
-              <div class="py-1.5 px-1.5 ${cls} text-[11px] sm:text-xs flex items-center justify-center whitespace-nowrap" title="${pick}">
-                <span>${shortLabel}</span>${icon}
-              </div>
-            </td>
-          `;
-        }).join("");
-
-        const tr = document.createElement("tr");
-        tr.className = "hover:opacity-95 transition-colors";
-        tr.innerHTML = `
-          <td class="py-3 px-3 font-medium text-main sticky-col">
-            <div class="text-xs sm:text-sm leading-tight space-y-1">
-              <div class="flex items-center">${awayLogo}<span class="font-semibold truncate">${game.away}</span></div>
-              <div class="text-[10px] text-sub font-bold uppercase tracking-wider pl-4">at</div>
-              <div class="flex items-center"><span class="font-semibold truncate">${game.home}</span>${homeLogo}</div>
-            </div>
-          </td>
-          <td class="py-3 px-3 text-center">
-            <div class="font-black text-main text-sm sm:text-base">${game.awayScore} - ${game.homeScore}</div>
-            <div class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full ${statusBadgeClass} mt-0.5 whitespace-nowrap">
-              ${liveDot}${game.statusDetail}
-            </div>
-            <div class="w-full h-1.5 rounded-full overflow-hidden flex mt-1.5 border border-main">
-              <div class="h-full" style="width:${game.awayWinPct}%; background: var(--accent);"></div>
-              <div class="h-full opacity-55" style="width:${game.homeWinPct}%; background: var(--accent-2);"></div>
-            </div>
-          </td>
-          <td class="py-3 px-2 text-center">${consensusBadge}</td>
-          ${playerCells}
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function openPickerModal(initialPlayer = "Dad") {
-      if (isSlateLocked()) {
-        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
-        return;
-      }
-      modalSelectedPlayer = initialPlayer;
-      unlockedPlayerThisSession = null;
-      modalDraftPicks = {};
-      renderModalPlayerPills();
-      updatePinGateUI();
-      document.getElementById("picker-modal").classList.remove("hidden");
-    }
-
-    function closePickerModal() {
-      document.getElementById("picker-modal").classList.add("hidden");
-      renderMatchupsTable();
-    }
-
-    function renderModalPlayerPills() {
-      const pills = document.getElementById("modal-player-pills");
-      pills.innerHTML = PLAYERS.map(p => {
-        const active = p === modalSelectedPlayer;
-        return `
-          <button type="button" onclick="selectModalPlayer('${p}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-            active
-              ? "accent-btn shadow-md"
-              : "border border-main text-sub hover:text-main"
-          }" style="${active ? "" : "background: var(--bg-pill);"}">${p}</button>
-        `;
-      }).join("");
-    }
-
-    function selectModalPlayer(player) {
-      modalSelectedPlayer = player;
-      unlockedPlayerThisSession = null;
-      modalDraftPicks = {};
-      renderModalPlayerPills();
-      updatePinGateUI();
-    }
-
-    function updatePinGateUI() {
-      const isUnlocked = unlockedPlayerThisSession === modalSelectedPlayer;
-      const cached = claimedPinsByPlayer[modalSelectedPlayer];
-      const hasExistingPin = Boolean(cached);
-
-      document.getElementById("pin-player-label").innerText = modalSelectedPlayer;
-      document.getElementById("pin-mode-label").innerText = hasExistingPin ? "Enter PIN" : "Create Your PIN";
-      document.getElementById("pin-status-hint").innerText = hasExistingPin
-        ? "PIN already set for this player"
-        : "First time picking? Choose a 4+ character PIN to claim your sheet";
-      document.getElementById("unlock-pin-btn").innerText = hasExistingPin ? "Unlock Picks" : "Set PIN & Unlock";
-      document.getElementById("unlocked-player-name").innerText = modalSelectedPlayer;
-
-      const pinInput = document.getElementById("pin-input");
-      pinInput.value = (cached && cached !== "__REMOTE_SET__") ? cached : "";
-      pinInput.placeholder = hasExistingPin ? "Enter your PIN" : "Create PIN (4+ chars)";
-      document.getElementById("pin-error-msg").classList.add("hidden");
-
-      document.getElementById("pin-gate-box").classList.toggle("hidden", isUnlocked);
-      document.getElementById("unlocked-picks-section").classList.toggle("hidden", !isUnlocked);
-      document.getElementById("clear-player-btn").classList.toggle("hidden", !isUnlocked);
-      document.getElementById("save-picks-btn").classList.toggle("hidden", !isUnlocked);
-
-      if (isUnlocked) {
-        loadDraftForPlayer(modalSelectedPlayer);
-        renderModalMatchups();
-      }
-    }
-
-    function verifySelectedPlayerPin() {
-      const entered = (document.getElementById("pin-input").value || "").trim();
-      const errorEl = document.getElementById("pin-error-msg");
-
-      if (entered.length < 4) {
-        errorEl.innerText = "Please enter at least 4 characters for your PIN.";
-        errorEl.classList.remove("hidden");
-        return;
-      }
-
-      const cached = claimedPinsByPlayer[modalSelectedPlayer];
-      if (cached && cached !== "__REMOTE_SET__" && cached !== entered) {
-        errorEl.innerText = "Incorrect PIN for " + modalSelectedPlayer + ".";
-        errorEl.classList.remove("hidden");
-        return;
-      }
-
-      if (!cached || cached === "__REMOTE_SET__") {
-        claimedPinsByPlayer[modalSelectedPlayer] = entered;
-        localStorage.setItem(PIN_CACHE_KEY, JSON.stringify(claimedPinsByPlayer));
-      }
-
-      lastVerifiedPinForPlayer[modalSelectedPlayer] = entered;
-      unlockedPlayerThisSession = modalSelectedPlayer;
-      errorEl.classList.add("hidden");
-      updatePinGateUI();
-      renderMatchupsTable();
-    }
-
-    function loadDraftForPlayer(player) {
-      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
-      modalDraftPicks = {};
-      currentWeekMatchups.forEach(g => {
-        const key = getMatchupKey(g.away, g.home);
-        const existing = weekPicks[key]?.[player];
-        if (existing && existing !== "__HIDDEN__") {
-          modalDraftPicks[key] = existing;
-        }
-      });
-    }
-
-    function chooseTeamInModal(matchupKey, teamName) {
-      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
-      modalDraftPicks[matchupKey] = teamName;
-      renderModalMatchups();
-    }
-
-    function clearCurrentPlayerPicks() {
-      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
-      currentWeekMatchups.forEach(g => {
-        delete modalDraftPicks[getMatchupKey(g.away, g.home)];
-      });
-      renderModalMatchups();
-    }
-
-    function renderModalMatchups() {
-      const list = document.getElementById("modal-matchups-list");
-      const locked = isSlateLocked();
-      let pickedCount = 0;
-
-      list.innerHTML = currentWeekMatchups.map(g => {
-        const key = getMatchupKey(g.away, g.home);
-        const chosen = modalDraftPicks[key] || "";
-        if (chosen) pickedCount += 1;
-
-        const awaySelected = chosen === g.away;
-        const homeSelected = chosen === g.home;
-
-        return `
-          <div class="border border-main rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${locked ? "opacity-60" : ""}" style="background: var(--bg-pill);">
-            <div class="text-xs font-bold text-main">
-              <span>${g.away}</span> <span class="text-sub">@</span> <span>${g.home}</span>
-              <span class="block text-[10px] text-sub font-normal">${locked ? "Locked (1h before 1st Sunday game)" : g.statusDetail}</span>
-            </div>
-            <div class="grid grid-cols-2 gap-2 sm:w-72 shrink-0">
-              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.away.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
-                awaySelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
-              }" style="${awaySelected ? "" : "background: var(--bg-page);"}">${g.away}</button>
-              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.home.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
-                homeSelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
-              }" style="${homeSelected ? "" : "background: var(--bg-page);"}">${g.home}</button>
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      document.getElementById("modal-pick-progress").innerText =
-        `${pickedCount} / ${currentWeekMatchups.length} selected`;
-    }
-
-    async function saveCurrentPlayerPicks() {
-      if (isSlateLocked()) {
-        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
-        return;
-      }
-      if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
-
-      const pin = lastVerifiedPinForPlayer[modalSelectedPlayer] || "";
-      const allDraftPicks = {};
-      currentWeekMatchups.forEach(g => {
-        const key = getMatchupKey(g.away, g.home);
-        allDraftPicks[key] = modalDraftPicks[key] || "";
-      });
-
-      const result = await submitPicksToBackend(
-        appState.activeWeek,
-        modalSelectedPlayer,
-        pin,
-        allDraftPicks
-      );
-
-      if (!result || !result.ok) {
-        alert(result?.error || "Could not save picks.");
-        return;
-      }
-
-      if (!appState.picksByWeek[appState.activeWeek]) {
-        appState.picksByWeek[appState.activeWeek] = {};
-      }
-      const weekPicks = appState.picksByWeek[appState.activeWeek];
-      Object.keys(allDraftPicks).forEach(key => {
-        if (!weekPicks[key]) weekPicks[key] = {};
-        if (allDraftPicks[key]) {
-          weekPicks[key][modalSelectedPlayer] = allDraftPicks[key];
-        } else {
-          delete weekPicks[key][modalSelectedPlayer];
-        }
-      });
-      saveAppState();
-
-      await syncWeekData();
-      unlockedPlayerThisSession = null;
-      closePickerModal();
-    }
-
-    function lockWeekSnapshot() {
-      const { stats } = computeWeekStats();
-      const ranked = [...PLAYERS]
-        .map(p => ({ player: p, total: stats[p].priorWins + stats[p].weekWins }))
-        .sort((a, b) => b.total - a.total);
-
-      let rank = 1;
-      ranked.forEach((entry, idx) => {
-        if (idx > 0 && entry.total < ranked[idx - 1].total) rank = idx + 1;
-        appState.priorWins[entry.player] = entry.total;
-        appState.prevRanks[entry.player] = rank;
-      });
-
-      appState.activeWeek = Math.min(18, appState.activeWeek + 1);
-      saveAppState();
-      initWeekSelector();
-      syncWeekData();
-    }
-
-    initThemeSelector();
-    initWeekSelector();
-    initFilterButtons();
-    syncWeekData();
-    setInterval(() => {
-      updateLockCountdownUI();
-      renderMatchupsTable();
-    }, 15000);
-    setInterval(syncWeekData, 30000);
-  </script>
-</body>
-</html>
+      document.getElementById("completion
