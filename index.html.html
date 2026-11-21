@@ -192,7 +192,7 @@
             </span>
           </div>
           <p class="text-[11px] sm:text-xs text-sub">
-            <span id="week-date-range">Nov 22, 2026</span> • Sunday Games Only • Locks 1h Before Kickoff
+            <span id="week-date-range">Nov 22, 2026</span> • Sunday Slate • All Picks Lock 1h Before First Sunday Kickoff
           </p>
         </div>
       </div>
@@ -233,20 +233,20 @@
       <div class="max-w-3xl">
         <div class="inline-flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider border border-main text-sub" style="background: var(--bg-pill);">
           <i class="fa-solid fa-shield-halved"></i>
-          Sunday Slate Only • Self-Set PINs • 1-Hour Cutoff
+          Sunday Slate Only • Full-Day Lock 1h Before First Kickoff
         </div>
         <h2 id="banner-week-title" class="text-xl sm:text-3xl font-black tracking-tight text-main mb-2">
           Week 11 Sunday Matchups & Standings
         </h2>
         <p class="text-xs sm:text-sm text-sub leading-relaxed mb-4">
-          Includes Sunday matchups only (Thursday and Monday games excluded). Pick your own PIN on first use, and picks remain hidden until <strong>1 hour before kickoff</strong>.
+          Submit all of your Sunday picks ahead of <strong>1 hour before the first Sunday game</strong>. All picks for the entire day lock together at that cutoff and remain hidden until then.
         </p>
         <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
           <span id="completion-pill" class="border border-main font-bold px-3 py-1.5 rounded-lg text-main" style="background: var(--bg-pill);">
             0 / 7 Players Picked
           </span>
           <span id="deadline-detail-pill" class="border border-main font-semibold px-3 py-1.5 rounded-lg text-sub" style="background: var(--bg-pill);">
-            Lock Deadline: Calculating...
+            Sunday Slate Lock: Calculating...
           </span>
           <button onclick="lockWeekSnapshot()" class="border border-main hover:opacity-90 font-bold px-3 py-1.5 rounded-lg text-main transition-colors cursor-pointer" style="background: var(--bg-pill);">
             <i class="fa-solid fa-flag-checkered mr-1"></i> Save Week Snapshot
@@ -315,7 +315,7 @@
             Week 11 Sunday Matchups & Picks
           </h2>
           <p id="visibility-helper-text" class="text-xs text-sub mt-0.5">
-            Sunday matchups only • Picks stay hidden until 1 hour before each game's kickoff.
+            Sunday matchups only • All picks stay hidden until 1 hour before the first Sunday kickoff.
           </p>
         </div>
 
@@ -413,7 +413,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "nfl_pickem_2026_v4_sunday";
+    const STORAGE_KEY = "nfl_pickem_2026_v6_sunday_slate_lock";
     const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
     const PIN_CACHE_KEY = "nfl_pickem_claimed_pins_v1";
     const LOCK_OFFSET_MINUTES = 60;
@@ -677,7 +677,6 @@
       { week: 18, label: "Jan 10, 2027",  start: "2027-01-08", end: "2027-01-16" }
     ];
 
-    // Sunday-only fallback matchups for Week 11 (Nov 22, 2026)
     const FALLBACK_MATCHUPS_BY_WEEK = {
       11: [
         { away: "New Orleans Saints", home: "Chicago Bears", kickoff: "2026-11-22T18:00:00Z" },
@@ -702,7 +701,6 @@
       "V": 1, "Abby": 2, "Mom": 3, "Dad": 4, "Hayden": 5, "Adam": 6, "Hunter": 7
     };
 
-    // Checks whether a game's kickoff falls on a Sunday in US/Canada Eastern Time
     function isSundayGame(game) {
       if (!game || !game.kickoff) return true;
       const ms = Date.parse(game.kickoff);
@@ -784,11 +782,74 @@
       return `${away} @ ${home}`;
     }
 
+    // Returns lock timestamp: 1 hour before the EARLIEST Sunday game in the week.
+    // All Sunday games share this single lock so picks are submitted for the whole day upfront.
+    function getSundaySlateLockMs() {
+      const sundayKickoffs = currentWeekMatchups
+        .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
+        .filter(ms => !Number.isNaN(ms))
+        .sort((a, b) => a - b);
+
+      if (sundayKickoffs.length === 0) return null;
+      return sundayKickoffs[0] - LOCK_OFFSET_MINUTES * 60 * 1000;
+    }
+
+    function isSlateLocked() {
+      const lockMs = getSundaySlateLockMs();
+      if (!lockMs) return false;
+      return Date.now() >= lockMs;
+    }
+
+    function updateLockCountdownUI() {
+      const lockMs = getSundaySlateLockMs();
+      const pill = document.getElementById("lock-countdown-pill");
+      const textEl = document.getElementById("lock-countdown-text");
+      const detailEl = document.getElementById("deadline-detail-pill");
+      const openBtn = document.getElementById("open-picker-btn");
+
+      if (!lockMs) {
+        textEl.innerText = "Open for Sunday Picks";
+        detailEl.innerText = "Sunday Slate Lock: 1h before first Sunday kickoff";
+        return;
+      }
+
+      const lockDate = new Date(lockMs);
+      const formattedLock = lockDate.toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      detailEl.innerText = `Sunday Slate Lock (1h pre-1st game): ${formattedLock}`;
+
+      const diffMs = lockMs - Date.now();
+      if (diffMs <= 0) {
+        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-rose-500/40 bg-rose-500/15 text-rose-300 flex items-center gap-1.5";
+        textEl.innerText = "SUNDAY PICKS LOCKED";
+        openBtn.innerHTML = `<i class="fa-solid fa-lock text-xs"></i><span>Locked</span>`;
+      } else {
+        const totalMins = Math.max(0, Math.floor(diffMs / 60000));
+        const days = Math.floor(totalMins / (60 * 24));
+        const hrs = Math.floor((totalMins % (60 * 24)) / 60);
+        const mins = totalMins % 60;
+        const parts = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hrs > 0 || days > 0) parts.push(`${hrs}h`);
+        parts.push(`${mins}m`);
+
+        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-amber-500/40 bg-amber-500/15 text-amber-400 flex items-center gap-1.5";
+        textEl.innerText = `Locks in ${parts.join(" ")}`;
+        openBtn.innerHTML = `<i class="fa-solid fa-key text-xs"></i><span>Make Picks</span>`;
+      }
+    }
+
     async function registerKickoffsWithBackend(weekNum) {
       if (!SHARED_API_URL || !currentWeekMatchups.length) return;
+      const slateLockMs = getSundaySlateLockMs();
       const kickoffsMap = {};
       currentWeekMatchups.forEach(g => {
-        const ms = g.kickoff ? Date.parse(g.kickoff) : NaN;
+        const ms = slateLockMs ? slateLockMs + LOCK_OFFSET_MINUTES * 60 * 1000 : (g.kickoff ? Date.parse(g.kickoff) : NaN);
         if (!Number.isNaN(ms)) {
           kickoffsMap[getMatchupKey(g.away, g.home)] = ms;
         }
@@ -825,83 +886,6 @@
         })
       });
       return await res.json();
-    }
-
-    function isGameLocked(game) {
-      if (!game) return false;
-      if (game.statusState && game.statusState !== "pre") return true;
-      const ms = game.kickoff ? Date.parse(game.kickoff) : NaN;
-      if (Number.isNaN(ms)) return false;
-      return Date.now() >= (ms - LOCK_OFFSET_MINUTES * 60 * 1000);
-    }
-
-    function getNextLockTimestampMs() {
-      const now = Date.now();
-      const validKickoffs = currentWeekMatchups
-        .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
-        .filter(ms => !Number.isNaN(ms))
-        .sort((a, b) => a - b);
-
-      if (validKickoffs.length === 0) return null;
-
-      const upcomingLock = validKickoffs
-        .map(ms => ms - LOCK_OFFSET_MINUTES * 60 * 1000)
-        .find(lockMs => lockMs > now);
-
-      if (upcomingLock) return upcomingLock;
-      return validKickoffs[validKickoffs.length - 1] - LOCK_OFFSET_MINUTES * 60 * 1000;
-    }
-
-    function hasAnyOpenMatchup() {
-      return currentWeekMatchups.some(g => !isGameLocked(g));
-    }
-
-    function isWeekLocked() {
-      return currentWeekMatchups.length > 0 && !hasAnyOpenMatchup();
-    }
-
-    function updateLockCountdownUI() {
-      const lockMs = getNextLockTimestampMs();
-      const pill = document.getElementById("lock-countdown-pill");
-      const textEl = document.getElementById("lock-countdown-text");
-      const detailEl = document.getElementById("deadline-detail-pill");
-      const openBtn = document.getElementById("open-picker-btn");
-
-      if (!lockMs) {
-        textEl.innerText = "Open for Picks";
-        detailEl.innerText = "Lock Deadline: 1 hour before Sunday kickoff";
-        return;
-      }
-
-      const lockDate = new Date(lockMs);
-      const formattedLock = lockDate.toLocaleString([], {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit"
-      });
-      detailEl.innerText = `Next Lock (1h pre-kickoff): ${formattedLock}`;
-
-      const diffMs = lockMs - Date.now();
-      if (diffMs <= 0 && isWeekLocked()) {
-        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-rose-500/40 bg-rose-500/15 text-rose-300 flex items-center gap-1.5";
-        textEl.innerText = "ALL PICKS LOCKED";
-        openBtn.innerHTML = `<i class="fa-solid fa-lock text-xs"></i><span>Locked</span>`;
-      } else {
-        const totalMins = Math.max(0, Math.floor(diffMs / 60000));
-        const days = Math.floor(totalMins / (60 * 24));
-        const hrs = Math.floor((totalMins % (60 * 24)) / 60);
-        const mins = totalMins % 60;
-        const parts = [];
-        if (days > 0) parts.push(`${days}d`);
-        if (hrs > 0 || days > 0) parts.push(`${hrs}h`);
-        parts.push(`${mins}m`);
-
-        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-amber-500/40 bg-amber-500/15 text-amber-400 flex items-center gap-1.5";
-        textEl.innerText = `Locks in ${parts.join(" ")}`;
-        openBtn.innerHTML = `<i class="fa-solid fa-key text-xs"></i><span>Make Picks</span>`;
-      }
     }
 
     function initWeekSelector() {
@@ -1109,6 +1093,7 @@
 
     function computeWeekStats() {
       const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      const slateLocked = isSlateLocked();
       const stats = {};
       const loneWolves = [];
       let playersWithAnyPick = 0;
@@ -1132,7 +1117,7 @@
           const pick = gamePicks[p];
           if (pick) {
             stats[p].pickedCount += 1;
-            if (pick !== "__HIDDEN__") {
+            if (slateLocked && pick !== "__HIDDEN__") {
               counts[pick] = (counts[pick] || 0) + 1;
               entries.push({ player: p, pick });
 
@@ -1143,7 +1128,7 @@
           }
         });
 
-        if (entries.length > 1 && isGameLocked(game)) {
+        if (slateLocked && entries.length > 1) {
           entries.forEach(({ player, pick }) => {
             if (counts[pick] === 1) {
               loneWolves.push({ player, pick, matchup: key });
@@ -1242,7 +1227,7 @@
 
       const loneWolfHtml = loneWolves.length
         ? loneWolves.slice(0, 3).map(lw => `<b>${lw.player}</b> (${lw.pick})`).join(", ")
-        : "Reveals as games lock";
+        : "Reveals after Sunday lock";
 
       container.innerHTML = `
         <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
@@ -1274,9 +1259,10 @@
       const tbody = document.getElementById("matchups-body");
       const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
       const visiblePlayers = PLAYERS.filter(p => selectedPlayersFilter.has(p));
+      const slateLocked = isSlateLocked();
 
       document.getElementById("visibility-helper-text").innerText =
-        "Sunday matchups only • Picks stay hidden until 1 hour before each game's kickoff.";
+        "Sunday matchups only • All picks stay hidden until 1 hour before the first Sunday kickoff.";
 
       headRow.innerHTML = `
         <th class="py-3.5 px-3 w-[200px] sm:w-[250px] sticky-col z-20">Matchup</th>
@@ -1290,7 +1276,6 @@
       currentWeekMatchups.forEach(game => {
         const key = getMatchupKey(game.away, game.home);
         const gamePicks = weekPicks[key] || {};
-        const gameLocked = isGameLocked(game);
 
         const counts = {};
         PLAYERS.forEach(p => {
@@ -1301,7 +1286,7 @@
         let consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-sub" style="background: var(--bg-pill);">Open</span>`;
         if (sortedCounts.length > 0) {
           const totalSubmitted = Object.keys(gamePicks).length;
-          if (!gameLocked) {
+          if (!slateLocked) {
             consensusBadge = `<span class="bg-amber-500/15 text-amber-400 border border-amber-500/35 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${totalSubmitted}/${PLAYERS.length} In</span>`;
           } else {
             const [topTeam, topCount] = sortedCounts[0];
@@ -1332,7 +1317,7 @@
             return `<td class="py-3 px-1.5 text-center"><div class="py-1.5 px-1.5 pick-empty text-xs">—</div></td>`;
           }
 
-          if (!gameLocked && (pick === "__HIDDEN__" || unlockedPlayerThisSession !== player)) {
+          if (!slateLocked) {
             return `
               <td class="py-3 px-1.5 text-center">
                 <div class="py-1.5 px-1.5 pick-hidden text-[10px] sm:text-xs flex items-center justify-center gap-1 whitespace-nowrap">
@@ -1395,8 +1380,8 @@
     }
 
     function openPickerModal(initialPlayer = "Dad") {
-      if (!hasAnyOpenMatchup()) {
-        alert("All Sunday games for this week have locked or started.");
+      if (isSlateLocked()) {
+        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
         return;
       }
       modalSelectedPlayer = initialPlayer;
@@ -1504,24 +1489,23 @@
       });
     }
 
-    function chooseTeamInModal(matchupKey, teamName, gameLocked) {
-      if (gameLocked || unlockedPlayerThisSession !== modalSelectedPlayer) return;
+    function chooseTeamInModal(matchupKey, teamName) {
+      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
       modalDraftPicks[matchupKey] = teamName;
       renderModalMatchups();
     }
 
     function clearCurrentPlayerPicks() {
-      if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
+      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
       currentWeekMatchups.forEach(g => {
-        if (!isGameLocked(g)) {
-          delete modalDraftPicks[getMatchupKey(g.away, g.home)];
-        }
+        delete modalDraftPicks[getMatchupKey(g.away, g.home)];
       });
       renderModalMatchups();
     }
 
     function renderModalMatchups() {
       const list = document.getElementById("modal-matchups-list");
+      const locked = isSlateLocked();
       let pickedCount = 0;
 
       list.innerHTML = currentWeekMatchups.map(g => {
@@ -1529,7 +1513,6 @@
         const chosen = modalDraftPicks[key] || "";
         if (chosen) pickedCount += 1;
 
-        const locked = isGameLocked(g);
         const awaySelected = chosen === g.away;
         const homeSelected = chosen === g.home;
 
@@ -1537,13 +1520,13 @@
           <div class="border border-main rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${locked ? "opacity-60" : ""}" style="background: var(--bg-pill);">
             <div class="text-xs font-bold text-main">
               <span>${g.away}</span> <span class="text-sub">@</span> <span>${g.home}</span>
-              <span class="block text-[10px] text-sub font-normal">${locked ? "Locked (within 1h of kickoff)" : g.statusDetail}</span>
+              <span class="block text-[10px] text-sub font-normal">${locked ? "Locked (1h before 1st Sunday game)" : g.statusDetail}</span>
             </div>
             <div class="grid grid-cols-2 gap-2 sm:w-72 shrink-0">
-              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.away.replace(/'/g, "\\'")}', ${locked})" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.away.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
                 awaySelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
               }" style="${awaySelected ? "" : "background: var(--bg-page);"}">${g.away}</button>
-              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.home.replace(/'/g, "\\'")}', ${locked})" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.home.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
                 homeSelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
               }" style="${homeSelected ? "" : "background: var(--bg-page);"}">${g.home}</button>
             </div>
@@ -1556,22 +1539,24 @@
     }
 
     async function saveCurrentPlayerPicks() {
+      if (isSlateLocked()) {
+        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
+        return;
+      }
       if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
 
       const pin = lastVerifiedPinForPlayer[modalSelectedPlayer] || "";
-      const openDraftPicks = {};
+      const allDraftPicks = {};
       currentWeekMatchups.forEach(g => {
-        if (!isGameLocked(g)) {
-          const key = getMatchupKey(g.away, g.home);
-          openDraftPicks[key] = modalDraftPicks[key] || "";
-        }
+        const key = getMatchupKey(g.away, g.home);
+        allDraftPicks[key] = modalDraftPicks[key] || "";
       });
 
       const result = await submitPicksToBackend(
         appState.activeWeek,
         modalSelectedPlayer,
         pin,
-        openDraftPicks
+        allDraftPicks
       );
 
       if (!result || !result.ok) {
@@ -1583,10 +1568,10 @@
         appState.picksByWeek[appState.activeWeek] = {};
       }
       const weekPicks = appState.picksByWeek[appState.activeWeek];
-      Object.keys(openDraftPicks).forEach(key => {
+      Object.keys(allDraftPicks).forEach(key => {
         if (!weekPicks[key]) weekPicks[key] = {};
-        if (openDraftPicks[key]) {
-          weekPicks[key][modalSelectedPlayer] = openDraftPicks[key];
+        if (allDraftPicks[key]) {
+          weekPicks[key][modalSelectedPlayer] = allDraftPicks[key];
         } else {
           delete weekPicks[key][modalSelectedPlayer];
         }
