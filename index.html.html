@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFL Pick'em Pool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    :root {
+      color-scheme: dark;
+      --bg-page: #0b0d10;
+      --bg-grad: radial-gradient(circle at 50% -20%, #1b222c 0%, #0d1015 55%, #07080a 100%);
+      --bg-header: rgba(13, 16, 21, 0.95);
+      --bg-card: linear-gradient(135deg, rgba(22, 27, 34, 0.96) 0%, rgba(15, 19, 25, 0.96) 100%);
+      --bg-table-head: rgba(30, 36, 46, 0.96);
+      --bg-sticky: #13171e;
+      --bg-pill: rgba(34, 41, 52, 0.85);
+      --bg-select-menu: #161b22;
+      --border-main: rgba(148, 163, 184, 0.25);
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --accent: #d91b1b;
+      --accent-2: #ef4444;
+      --accent-text: #ffffff;
+      --leading-bg: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      --leading-text: #ffffff;
+      --neutral-bg: rgba(51, 65, 85, 0.55);
+      --neutral-text: #f1f5f9;
+      --empty-bg: rgba(30, 41, 59, 0.45);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-grad);
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    select.pool-select {
+      background-color: var(--bg-select-menu);
+      color: var(--text-main);
+      border: 1px solid var(--border-main);
+    }
+
+    select.pool-select option {
+      background-color: var(--bg-select-menu);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .bg-card {
+      background: var(--bg-card);
+      border-color: var(--border-main);
+      color: var(--text-main);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 14px 28px -8px rgba(0, 0, 0, 0.35);
+    }
+
+    .bg-header {
+      background-color: var(--bg-header);
+      border-color: var(--border-main);
+      backdrop-filter: blur(16px);
+      color: var(--text-main);
+    }
+
+    .table-head {
+      background-color: var(--bg-table-head);
+      color: var(--text-sub);
+      border-color: var(--border-main);
+    }
+
+    .text-sub { color: var(--text-sub); }
+    .text-main { color: var(--text-main); }
+    .divide-custom { border-color: var(--border-main); }
+
+    .sticky-col {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background-color: var(--bg-sticky) !important;
+      border-right: 2px solid var(--border-main);
+    }
+
+    .pick-leading {
+      background: var(--leading-bg) !important;
+      color: var(--leading-text) !important;
+      font-weight: 800 !important;
+      border-radius: 0.375rem;
+    }
+
+    .pick-losing {
+      background-color: rgba(100, 116, 139, 0.25) !important;
+      color: var(--text-sub) !important;
+      text-decoration: line-through;
+      font-weight: 500 !important;
+      opacity: 0.75;
+      border-radius: 0.375rem;
+    }
+
+    .pick-tied {
+      background-color: rgba(100, 116, 139, 0.35) !important;
+      color: var(--text-main) !important;
+      font-weight: 600 !important;
+      border-radius: 0.375rem;
+    }
+
+    .pick-neutral {
+      background-color: var(--neutral-bg);
+      color: var(--neutral-text);
+      border-radius: 0.375rem;
+    }
+
+    .pick-hidden {
+      background-color: rgba(245, 158, 11, 0.16);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #f59e0b;
+      font-weight: 700;
+      border-radius: 0.375rem;
+    }
+
+    .pick-empty {
+      color: var(--text-sub);
+      font-style: italic;
+      background-color: var(--empty-bg);
+      border-radius: 0.375rem;
+    }
+
+    .accent-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      color: var(--accent-text);
+    }
+
+    .live-pulse {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #ef4444;
+      animation: pulse-ring 1.5s infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+      70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .table-responsive-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    ::-webkit-scrollbar { height: 6px; width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen pb-14">
+
+  <!-- Header -->
+  <header class="bg-header border-b sticky top-0 z-40 shadow-lg">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="accent-btn p-2.5 rounded-xl shadow-md flex items-center justify-center">
+          <i class="fa-solid fa-football text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-lg sm:text-2xl font-black tracking-tight text-main">
+              NFL Pick'em Pool
+            </h1>
+            <span id="active-week-badge" class="text-[10px] sm:text-xs font-extrabold accent-btn px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> WEEK 11
+            </span>
+          </div>
+          <p class="text-[11px] sm:text-xs text-sub">
+            <span id="week-date-range">Nov 22, 2026</span> • Sunday Games Only • Locks 1h Before Kickoff
+          </p>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center flex-wrap gap-2 sm:gap-2.5">
+        <div id="lock-countdown-pill" class="px-3 py-2 rounded-xl text-xs font-extrabold border border-amber-500/40 bg-amber-500/15 text-amber-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-clock"></i>
+          <span id="lock-countdown-text">Checking kickoff...</span>
+        </div>
+
+        <label class="flex items-center gap-1.5 border border-main rounded-xl px-2.5 py-1.5 text-xs font-bold text-sub" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-palette text-[11px]"></i>
+          <select id="theme-select" onchange="applyTheme(this.value)" class="pool-select rounded-lg px-2 py-1 text-xs font-bold focus:outline-none cursor-pointer"></select>
+        </label>
+
+        <label class="flex items-center gap-1.5 border border-main rounded-xl px-2.5 py-1.5 text-xs font-bold text-sub" style="background: var(--bg-pill);">
+          <span>Week</span>
+          <select id="week-select" onchange="changeActiveWeek(Number(this.value))" class="pool-select rounded-lg px-2 py-1 text-xs font-extrabold focus:outline-none cursor-pointer"></select>
+        </label>
+
+        <button id="open-picker-btn" onclick="openPickerModal()" class="flex items-center space-x-2 accent-btn hover:opacity-95 font-extrabold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm transition-all active:scale-95 shadow-md min-h-[40px] cursor-pointer">
+          <i class="fa-solid fa-key text-xs"></i>
+          <span>Make Picks</span>
+        </button>
+
+        <button id="refresh-btn" onclick="syncWeekData()" class="flex items-center space-x-2 border border-main hover:opacity-90 font-extrabold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm transition-all active:scale-95 min-h-[40px] cursor-pointer" style="background: var(--bg-pill);">
+          <i id="refresh-icon" class="fa-solid fa-arrows-rotate text-xs"></i>
+          <span class="hidden sm:inline">Sync</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Overview Banner -->
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <div class="bg-card rounded-2xl border p-5 sm:p-6">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider border border-main text-sub" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-shield-halved"></i>
+          Sunday Slate Only • Self-Set PINs • 1-Hour Cutoff
+        </div>
+        <h2 id="banner-week-title" class="text-xl sm:text-3xl font-black tracking-tight text-main mb-2">
+          Week 11 Sunday Matchups & Standings
+        </h2>
+        <p class="text-xs sm:text-sm text-sub leading-relaxed mb-4">
+          Includes Sunday matchups only (Thursday and Monday games excluded). Pick your own PIN on first use, and picks remain hidden until <strong>1 hour before kickoff</strong>.
+        </p>
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
+          <span id="completion-pill" class="border border-main font-bold px-3 py-1.5 rounded-lg text-main" style="background: var(--bg-pill);">
+            0 / 7 Players Picked
+          </span>
+          <span id="deadline-detail-pill" class="border border-main font-semibold px-3 py-1.5 rounded-lg text-sub" style="background: var(--bg-pill);">
+            Lock Deadline: Calculating...
+          </span>
+          <button onclick="lockWeekSnapshot()" class="border border-main hover:opacity-90 font-bold px-3 py-1.5 rounded-lg text-main transition-colors cursor-pointer" style="background: var(--bg-pill);">
+            <i class="fa-solid fa-flag-checkered mr-1"></i> Save Week Snapshot
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-8">
+
+    <!-- Standings & Week-over-Week Movement -->
+    <section class="bg-card rounded-2xl border p-4 sm:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-5 border-b pb-4 divide-custom">
+        <div>
+          <h2 class="text-base sm:text-xl font-bold text-main flex items-center gap-2">
+            <i class="fa-solid fa-trophy" style="color: var(--accent-2);"></i>
+            Standings & Week-over-Week Movement
+          </h2>
+          <p class="text-xs text-sub mt-0.5">Current rank compared against prior week's rank</p>
+        </div>
+
+        <div class="flex items-center space-x-3 text-[11px] sm:text-xs font-semibold text-sub px-3 py-1.5 rounded-lg border border-main" style="background: var(--bg-pill);">
+          <span class="text-emerald-400 font-bold">▲ Climbed</span>
+          <span class="text-rose-400 font-bold">▼ Dropped</span>
+          <span class="font-bold">— Steady</span>
+        </div>
+      </div>
+
+      <div class="table-responsive-container">
+        <table class="w-full text-left border-collapse min-w-[680px]">
+          <thead>
+            <tr class="table-head text-xs uppercase tracking-wider font-bold border-b">
+              <th class="py-3 px-3 sm:px-4 w-20 text-center">Rank</th>
+              <th class="py-3 px-3 sm:px-4 w-24 text-center">WoW</th>
+              <th class="py-3 px-4 font-bold text-main">Player</th>
+              <th class="py-3 px-3 text-center w-28">Prev Rank</th>
+              <th class="py-3 px-3 text-center w-28">Prior Wins</th>
+              <th class="py-3 px-3 text-center w-28">Week Wins</th>
+              <th class="py-3 px-4 text-center w-32 font-extrabold text-main">Total Wins</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body" class="divide-y divide-custom text-sm font-medium"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Highlights -->
+    <section class="bg-card rounded-2xl border p-4 sm:p-6">
+      <div class="flex items-center justify-between border-b pb-3 mb-4 divide-custom">
+        <h3 class="text-sm sm:text-base font-bold text-main flex items-center gap-2">
+          <i class="fa-solid fa-bolt" style="color: var(--accent-2);"></i>
+          Weekly Notes
+        </h3>
+        <span id="last-updated" class="text-[11px] sm:text-xs text-sub">Syncing...</span>
+      </div>
+      <div id="badges-container" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- Weekly Matchups & Picks Matrix -->
+    <section class="bg-card rounded-2xl border overflow-hidden">
+      <div class="p-4 sm:p-6 border-b divide-custom flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 id="matchups-section-title" class="text-base sm:text-xl font-bold text-main flex items-center gap-2">
+            <i class="fa-solid fa-list-check" style="color: var(--accent-2);"></i>
+            Week 11 Sunday Matchups & Picks
+          </h2>
+          <p id="visibility-helper-text" class="text-xs text-sub mt-0.5">
+            Sunday matchups only • Picks stay hidden until 1 hour before each game's kickoff.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl border border-main" style="background: var(--bg-pill);" id="filter-buttons">
+          <button onclick="selectAllFilter()" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all accent-btn cursor-pointer">All</button>
+          <button onclick="clearAllFilter()" class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-sub hover:text-main cursor-pointer">Reset</button>
+          <span class="text-sub opacity-40 font-bold mx-1">|</span>
+        </div>
+      </div>
+
+      <div class="table-responsive-container">
+        <table class="w-full text-left border-collapse" id="matchups-table">
+          <thead>
+            <tr class="table-head text-xs uppercase tracking-wider font-bold border-b" id="table-head-row">
+              <th class="py-3.5 px-4 w-[210px] sm:w-[250px] sticky-col z-20">Matchup</th>
+              <th class="py-3.5 px-4 w-40 text-center">Score / Status / Win %</th>
+              <th class="py-3.5 px-2 w-28 text-center">Consensus</th>
+            </tr>
+          </thead>
+          <tbody id="matchups-body" class="divide-y divide-custom text-sm font-medium"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Self-Set PIN Pick Modal -->
+  <div id="picker-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-card border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 sm:p-5 border-b divide-custom flex items-center justify-between">
+        <div>
+          <h3 id="modal-title" class="text-base sm:text-xl font-black text-main">Submit Week 11 Sunday Picks</h3>
+          <p id="modal-subtitle" class="text-xs text-sub">Select your name and enter or create your personal PIN (4+ chars)</p>
+        </div>
+        <button onclick="closePickerModal()" class="text-sub hover:text-main p-2 rounded-lg cursor-pointer">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+        <div>
+          <label class="block text-xs font-extrabold uppercase tracking-wider text-sub mb-2">1. Select Player</label>
+          <div id="modal-player-pills" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div id="pin-gate-box" class="border border-main rounded-xl p-4 space-y-3" style="background: var(--bg-pill);">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-main">
+              <i class="fa-solid fa-lock mr-1"></i> 2. <span id="pin-mode-label">PIN</span> for <span id="pin-player-label">Dad</span>
+            </span>
+            <span id="pin-status-hint" class="text-[11px] text-sub"></span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              id="pin-input"
+              type="password"
+              inputmode="numeric"
+              maxlength="12"
+              placeholder="Enter PIN (4+ chars)"
+              onkeydown="if(event.key==='Enter') verifySelectedPlayerPin()"
+              class="border border-main focus:outline-none rounded-xl px-3.5 py-2 text-sm font-bold tracking-widest text-main w-52"
+              style="background: var(--bg-page);"
+            />
+            <button type="button" onclick="verifySelectedPlayerPin()" id="unlock-pin-btn" class="px-4 py-2 rounded-xl text-xs font-extrabold accent-btn hover:opacity-95 cursor-pointer">
+              Unlock Picks
+            </button>
+          </div>
+          <p id="pin-error-msg" class="text-xs font-bold text-rose-400 hidden"></p>
+        </div>
+
+        <div id="unlocked-picks-section" class="space-y-2.5 hidden">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-extrabold uppercase tracking-wider text-emerald-400">
+              <i class="fa-solid fa-unlock mr-1"></i> Unlocked: <span id="unlocked-player-name">Dad</span>
+            </label>
+            <span id="modal-pick-progress" class="text-xs font-bold text-sub">0 / 0 selected</span>
+          </div>
+          <div id="modal-matchups-list" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t divide-custom flex flex-wrap items-center justify-between gap-3">
+        <button id="clear-player-btn" onclick="clearCurrentPlayerPicks()" class="px-3 py-2 text-xs font-bold rounded-xl border border-main text-sub hover:text-main cursor-pointer hidden" style="background: var(--bg-pill);">
+          Clear Picks
+        </button>
+        <div class="flex items-center gap-2 ml-auto">
+          <button onclick="closePickerModal()" class="px-4 py-2 text-xs font-bold rounded-xl border border-main text-sub hover:text-main cursor-pointer" style="background: var(--bg-pill);">
+            Close
+          </button>
+          <button id="save-picks-btn" onclick="saveCurrentPlayerPicks()" class="px-5 py-2.5 text-xs sm:text-sm font-extrabold rounded-xl accent-btn hover:opacity-95 shadow-lg cursor-pointer hidden">
+            Save Picks
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "nfl_pickem_2026_v4_sunday";
+    const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
+    const PIN_CACHE_KEY = "nfl_pickem_claimed_pins_v1";
+    const LOCK_OFFSET_MINUTES = 60;
+    const GAME_TIMEZONE = "America/New_York";
+
+    const SHARED_API_URL = "https://script.google.com/macros/s/AKfycbwfOY66BryGr5z0OCvPH-GVIHO33_MhwgCfcdKV2E35LnvaCJthUWGEXY7II6mB_kFxLA/exec";
+
+    const THEMES = {
+      espn_dark: {
+        name: "ESPN Sports Dark (Default)",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#0b0d10",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #1b222c 0%, #0d1015 55%, #07080a 100%)",
+          "--bg-header": "rgba(13, 16, 21, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(22, 27, 34, 0.96) 0%, rgba(15, 19, 25, 0.96) 100%)",
+          "--bg-table-head": "rgba(30, 36, 46, 0.96)",
+          "--bg-sticky": "#13171e",
+          "--bg-pill": "rgba(34, 41, 52, 0.85)",
+          "--bg-select-menu": "#161b22",
+          "--border-main": "rgba(148, 163, 184, 0.25)",
+          "--text-main": "#f8fafc",
+          "--text-sub": "#94a3b8",
+          "--accent": "#d91b1b",
+          "--accent-2": "#ef4444",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(51, 65, 85, 0.55)",
+          "--neutral-text": "#f1f5f9",
+          "--empty-bg": "rgba(30, 41, 59, 0.45)"
+        }
+      },
+      espn_light: {
+        name: "ESPN Broadcast Light",
+        colorScheme: "light",
+        vars: {
+          "--bg-page": "#f1f5f9",
+          "--bg-grad": "linear-gradient(180deg, #e2e8f0 0%, #f8fafc 45%, #f1f5f9 100%)",
+          "--bg-header": "rgba(255, 255, 255, 0.96)",
+          "--bg-card": "#ffffff",
+          "--bg-table-head": "#f1f5f9",
+          "--bg-sticky": "#ffffff",
+          "--bg-pill": "#f1f5f9",
+          "--bg-select-menu": "#ffffff",
+          "--border-main": "rgba(15, 23, 42, 0.18)",
+          "--text-main": "#0f172a",
+          "--text-sub": "#475569",
+          "--accent": "#cc0000",
+          "--accent-2": "#dc2626",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "#e2e8f0",
+          "--neutral-text": "#0f172a",
+          "--empty-bg": "#f8fafc"
+        }
+      },
+      sunday_prime: {
+        name: "Sunday Night Lights",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#070b19",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #172554 0%, #090d1e 55%, #050711 100%)",
+          "--bg-header": "rgba(9, 13, 30, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(10, 15, 30, 0.96) 100%)",
+          "--bg-table-head": "rgba(23, 37, 84, 0.9)",
+          "--bg-sticky": "#0d1428",
+          "--bg-pill": "rgba(30, 41, 59, 0.85)",
+          "--bg-select-menu": "#0f172a",
+          "--border-main": "rgba(96, 165, 250, 0.25)",
+          "--text-main": "#f8fafc",
+          "--text-sub": "#93c5fd",
+          "--accent": "#2563eb",
+          "--accent-2": "#3b82f6",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(30, 58, 138, 0.45)",
+          "--neutral-text": "#eff6ff",
+          "--empty-bg": "rgba(15, 23, 42, 0.6)"
+        }
+      },
+      monday_broadcast: {
+        name: "Monday Night Broadcast",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#0a0a0c",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #1e1b4b 0%, #0c0c10 55%, #050507 100%)",
+          "--bg-header": "rgba(12, 12, 16, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(20, 20, 28, 0.96) 0%, rgba(13, 13, 19, 0.96) 100%)",
+          "--bg-table-head": "rgba(30, 27, 75, 0.85)",
+          "--bg-sticky": "#121218",
+          "--bg-pill": "rgba(30, 30, 42, 0.85)",
+          "--bg-select-menu": "#14141c",
+          "--border-main": "rgba(129, 140, 248, 0.25)",
+          "--text-main": "#f8fafc",
+          "--text-sub": "#a5b4fc",
+          "--accent": "#4f46e5",
+          "--accent-2": "#6366f1",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(49, 46, 129, 0.45)",
+          "--neutral-text": "#eef2ff",
+          "--empty-bg": "rgba(24, 24, 34, 0.65)"
+        }
+      },
+      gridiron_emerald: {
+        name: "Gridiron Turf Emerald",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#06120d",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #064e3b 0%, #081811 55%, #040c08 100%)",
+          "--bg-header": "rgba(8, 24, 17, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(12, 34, 24, 0.96) 0%, rgba(8, 22, 16, 0.96) 100%)",
+          "--bg-table-head": "rgba(6, 78, 59, 0.75)",
+          "--bg-sticky": "#0a1c14",
+          "--bg-pill": "rgba(20, 48, 35, 0.85)",
+          "--bg-select-menu": "#0c2218",
+          "--border-main": "rgba(52, 211, 153, 0.25)",
+          "--text-main": "#ecfdf5",
+          "--text-sub": "#6ee7b7",
+          "--accent": "#059669",
+          "--accent-2": "#10b981",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(6, 95, 70, 0.5)",
+          "--neutral-text": "#ecfdf5",
+          "--empty-bg": "rgba(10, 28, 20, 0.6)"
+        }
+      },
+      royal_playbook: {
+        name: "Royal Playbook",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#110a1d",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #3b0764 0%, #140b24 55%, #090511 100%)",
+          "--bg-header": "rgba(20, 11, 36, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(28, 16, 48, 0.96) 0%, rgba(19, 10, 34, 0.96) 100%)",
+          "--bg-table-head": "rgba(59, 7, 100, 0.75)",
+          "--bg-sticky": "#170d28",
+          "--bg-pill": "rgba(42, 24, 71, 0.85)",
+          "--bg-select-menu": "#1c1030",
+          "--border-main": "rgba(192, 132, 252, 0.25)",
+          "--text-main": "#faf5ff",
+          "--text-sub": "#d8b4fe",
+          "--accent": "#9333ea",
+          "--accent-2": "#a855f7",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(88, 28, 135, 0.45)",
+          "--neutral-text": "#faf5ff",
+          "--empty-bg": "rgba(25, 14, 44, 0.65)"
+        }
+      },
+      sunset_tailgate: {
+        name: "Sunset Tailgate",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#180c08",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #7c2d12 0%, #1c0e09 55%, #0d0604 100%)",
+          "--bg-header": "rgba(28, 14, 9, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(38, 19, 12, 0.96) 0%, rgba(25, 12, 8, 0.96) 100%)",
+          "--bg-table-head": "rgba(124, 45, 18, 0.75)",
+          "--bg-sticky": "#1f100a",
+          "--bg-pill": "rgba(56, 28, 17, 0.85)",
+          "--bg-select-menu": "#26130c",
+          "--border-main": "rgba(251, 146, 60, 0.25)",
+          "--text-main": "#fff7ed",
+          "--text-sub": "#fdba74",
+          "--accent": "#ea580c",
+          "--accent-2": "#f97316",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(154, 52, 18, 0.45)",
+          "--neutral-text": "#fff7ed",
+          "--empty-bg": "rgba(33, 16, 10, 0.65)"
+        }
+      },
+      copper_stadium: {
+        name: "Copper & Gold Stadium",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#14110b",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #713f12 0%, #17130c 55%, #0b0905 100%)",
+          "--bg-header": "rgba(23, 19, 12, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(32, 27, 17, 0.96) 0%, rgba(22, 18, 11, 0.96) 100%)",
+          "--bg-table-head": "rgba(113, 63, 18, 0.7)",
+          "--bg-sticky": "#1a160e",
+          "--bg-pill": "rgba(48, 40, 25, 0.85)",
+          "--bg-select-menu": "#201b11",
+          "--border-main": "rgba(250, 204, 21, 0.25)",
+          "--text-main": "#fefce8",
+          "--text-sub": "#fde047",
+          "--accent": "#ca8a04",
+          "--accent-2": "#eab308",
+          "--accent-text": "#09090b",
+          "--neutral-bg": "rgba(133, 77, 14, 0.45)",
+          "--neutral-text": "#fefce8",
+          "--empty-bg": "rgba(28, 23, 14, 0.65)"
+        }
+      },
+      midnight_slate: {
+        name: "Midnight Slate",
+        colorScheme: "dark",
+        vars: {
+          "--bg-page": "#090d16",
+          "--bg-grad": "radial-gradient(circle at 50% -20%, #1e293b 0%, #0b101b 55%, #05080f 100%)",
+          "--bg-header": "rgba(11, 16, 27, 0.95)",
+          "--bg-card": "linear-gradient(135deg, rgba(17, 24, 39, 0.96) 0%, rgba(12, 17, 29, 0.96) 100%)",
+          "--bg-table-head": "rgba(30, 41, 59, 0.9)",
+          "--bg-sticky": "#0f1626",
+          "--bg-pill": "rgba(30, 41, 59, 0.85)",
+          "--bg-select-menu": "#111827",
+          "--border-main": "rgba(148, 163, 184, 0.25)",
+          "--text-main": "#f1f5f9",
+          "--text-sub": "#94a3b8",
+          "--accent": "#0284c7",
+          "--accent-2": "#0ea5e9",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "rgba(51, 65, 85, 0.55)",
+          "--neutral-text": "#f1f5f9",
+          "--empty-bg": "rgba(15, 23, 42, 0.65)"
+        }
+      },
+      arctic_ice: {
+        name: "Arctic Slate Light",
+        colorScheme: "light",
+        vars: {
+          "--bg-page": "#eef2f6",
+          "--bg-grad": "linear-gradient(180deg, #dbeafe 0%, #f1f5f9 45%, #eef2f6 100%)",
+          "--bg-header": "rgba(255, 255, 255, 0.96)",
+          "--bg-card": "#ffffff",
+          "--bg-table-head": "#e2e8f0",
+          "--bg-sticky": "#ffffff",
+          "--bg-pill": "#e2e8f0",
+          "--bg-select-menu": "#ffffff",
+          "--border-main": "rgba(15, 23, 42, 0.18)",
+          "--text-main": "#0f172a",
+          "--text-sub": "#475569",
+          "--accent": "#0369a1",
+          "--accent-2": "#0284c7",
+          "--accent-text": "#ffffff",
+          "--neutral-bg": "#cbd5e1",
+          "--neutral-text": "#0f172a",
+          "--empty-bg": "#f8fafc"
+        }
+      }
+    };
+
+    const PLAYERS = ["Dad", "Mom", "Hunter", "Abby", "Adam", "Hayden", "V"];
+
+    const NFL_WEEKS = [
+      { week: 1,  label: "Sep 13, 2026",  start: "2026-09-09", end: "2026-09-15" },
+      { week: 2,  label: "Sep 20, 2026",  start: "2026-09-16", end: "2026-09-22" },
+      { week: 3,  label: "Sep 27, 2026",  start: "2026-09-23", end: "2026-09-29" },
+      { week: 4,  label: "Oct 4, 2026",   start: "2026-09-30", end: "2026-10-06" },
+      { week: 5,  label: "Oct 11, 2026",  start: "2026-10-07", end: "2026-10-13" },
+      { week: 6,  label: "Oct 18, 2026",  start: "2026-10-14", end: "2026-10-20" },
+      { week: 7,  label: "Oct 25, 2026",  start: "2026-10-21", end: "2026-10-27" },
+      { week: 8,  label: "Nov 1, 2026",   start: "2026-10-28", end: "2026-11-03" },
+      { week: 9,  label: "Nov 8, 2026",   start: "2026-11-04", end: "2026-11-10" },
+      { week: 10, label: "Nov 15, 2026",  start: "2026-11-11", end: "2026-11-17" },
+      { week: 11, label: "Nov 22, 2026",  start: "2026-11-18", end: "2026-11-24" },
+      { week: 12, label: "Nov 29, 2026",  start: "2026-11-25", end: "2026-12-01" },
+      { week: 13, label: "Dec 6, 2026",   start: "2026-12-02", end: "2026-12-08" },
+      { week: 14, label: "Dec 13, 2026",  start: "2026-12-09", end: "2026-12-15" },
+      { week: 15, label: "Dec 20, 2026",  start: "2026-12-16", end: "2026-12-22" },
+      { week: 16, label: "Dec 27, 2026",  start: "2026-12-23", end: "2026-12-31" },
+      { week: 17, label: "Jan 3, 2027",   start: "2027-01-01", end: "2027-01-07" },
+      { week: 18, label: "Jan 10, 2027",  start: "2027-01-08", end: "2027-01-16" }
+    ];
+
+    // Sunday-only fallback matchups for Week 11 (Nov 22, 2026)
+    const FALLBACK_MATCHUPS_BY_WEEK = {
+      11: [
+        { away: "New Orleans Saints", home: "Chicago Bears", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Tampa Bay Buccaneers", home: "Detroit Lions", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Baltimore Ravens", home: "Carolina Panthers", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Miami Dolphins", home: "Buffalo Bills", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Tennessee Titans", home: "Dallas Cowboys", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Arizona Cardinals", home: "Kansas City Chiefs", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "Pittsburgh Steelers", home: "Philadelphia Eagles", kickoff: "2026-11-22T18:00:00Z" },
+        { away: "New York Jets", home: "Los Angeles Chargers", kickoff: "2026-11-22T21:05:00Z" },
+        { away: "Jacksonville Jaguars", home: "New York Giants", kickoff: "2026-11-22T21:25:00Z" },
+        { away: "Las Vegas Raiders", home: "Denver Broncos", kickoff: "2026-11-22T21:25:00Z" },
+        { away: "Minnesota Vikings", home: "San Francisco 49ers", kickoff: "2026-11-23T01:20:00Z" }
+      ]
+    };
+
+    const INITIAL_PRIOR_WINS = {
+      "V": 89, "Abby": 87, "Mom": 86, "Dad": 85, "Hayden": 81, "Adam": 77, "Hunter": 75
+    };
+
+    const INITIAL_PREV_RANKS = {
+      "V": 1, "Abby": 2, "Mom": 3, "Dad": 4, "Hayden": 5, "Adam": 6, "Hunter": 7
+    };
+
+    // Checks whether a game's kickoff falls on a Sunday in US/Canada Eastern Time
+    function isSundayGame(game) {
+      if (!game || !game.kickoff) return true;
+      const ms = Date.parse(game.kickoff);
+      if (Number.isNaN(ms)) return true;
+      const weekday = new Intl.DateTimeFormat("en-US", {
+        timeZone: GAME_TIMEZONE,
+        weekday: "short"
+      }).format(new Date(ms));
+      return weekday === "Sun";
+    }
+
+    function filterSundayOnly(games) {
+      return (games || []).filter(isSundayGame);
+    }
+
+    function initThemeSelector() {
+      const sel = document.getElementById("theme-select");
+      const savedKey = localStorage.getItem(THEME_STORAGE_KEY) || "espn_dark";
+      sel.innerHTML = Object.entries(THEMES)
+        .map(([key, cfg]) => `<option value="${key}" ${key === savedKey ? "selected" : ""}>${cfg.name}</option>`)
+        .join("");
+      applyTheme(savedKey);
+    }
+
+    function applyTheme(themeKey) {
+      const cfg = THEMES[themeKey] || THEMES.espn_dark;
+      const root = document.documentElement;
+      root.style.setProperty("color-scheme", cfg.colorScheme || "dark");
+      Object.entries(cfg.vars).forEach(([prop, val]) => {
+        root.style.setProperty(prop, val);
+      });
+      localStorage.setItem(THEME_STORAGE_KEY, THEMES[themeKey] ? themeKey : "espn_dark");
+    }
+
+    function detectCurrentNFLWeek() {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const match = NFL_WEEKS.find(w => todayStr >= w.start && todayStr <= w.end);
+      return match ? match.week : 11;
+    }
+
+    function loadAppState() {
+      const fallbackWeek = detectCurrentNFLWeek();
+      const defaultState = {
+        activeWeek: fallbackWeek,
+        priorWins: { ...INITIAL_PRIOR_WINS },
+        prevRanks: { ...INITIAL_PREV_RANKS },
+        picksByWeek: {}
+      };
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultState;
+        const parsed = JSON.parse(raw);
+        return {
+          ...defaultState,
+          ...parsed,
+          priorWins: { ...INITIAL_PRIOR_WINS, ...(parsed.priorWins || {}) },
+          prevRanks: { ...INITIAL_PREV_RANKS, ...(parsed.prevRanks || {}) },
+          picksByWeek: parsed.picksByWeek || {}
+        };
+      } catch {
+        return defaultState;
+      }
+    }
+
+    function saveAppState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    }
+
+    let appState = loadAppState();
+    let currentWeekMatchups = [];
+    let selectedPlayersFilter = new Set(PLAYERS);
+    let modalSelectedPlayer = "Dad";
+    let unlockedPlayerThisSession = null;
+    let modalDraftPicks = {};
+    let lastVerifiedPinForPlayer = {};
+    let claimedPinsByPlayer = JSON.parse(localStorage.getItem(PIN_CACHE_KEY) || "{}");
+
+    function getMatchupKey(away, home) {
+      return `${away} @ ${home}`;
+    }
+
+    async function registerKickoffsWithBackend(weekNum) {
+      if (!SHARED_API_URL || !currentWeekMatchups.length) return;
+      const kickoffsMap = {};
+      currentWeekMatchups.forEach(g => {
+        const ms = g.kickoff ? Date.parse(g.kickoff) : NaN;
+        if (!Number.isNaN(ms)) {
+          kickoffsMap[getMatchupKey(g.away, g.home)] = ms;
+        }
+      });
+      await fetch(SHARED_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "registerKickoffs",
+          week: weekNum,
+          kickoffs: kickoffsMap
+        })
+      });
+    }
+
+    async function fetchSharedWeekPicks(weekNum) {
+      if (!SHARED_API_URL) return null;
+      const res = await fetch(`${SHARED_API_URL}?week=${encodeURIComponent(weekNum)}&_t=${Date.now()}`);
+      if (!res.ok) throw new Error(`Backend HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    async function submitPicksToBackend(weekNum, player, pin, picksMap) {
+      if (!SHARED_API_URL) return { ok: true };
+      const res = await fetch(SHARED_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "savePicks",
+          week: weekNum,
+          player,
+          pin,
+          picks: picksMap
+        })
+      });
+      return await res.json();
+    }
+
+    function isGameLocked(game) {
+      if (!game) return false;
+      if (game.statusState && game.statusState !== "pre") return true;
+      const ms = game.kickoff ? Date.parse(game.kickoff) : NaN;
+      if (Number.isNaN(ms)) return false;
+      return Date.now() >= (ms - LOCK_OFFSET_MINUTES * 60 * 1000);
+    }
+
+    function getNextLockTimestampMs() {
+      const now = Date.now();
+      const validKickoffs = currentWeekMatchups
+        .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
+        .filter(ms => !Number.isNaN(ms))
+        .sort((a, b) => a - b);
+
+      if (validKickoffs.length === 0) return null;
+
+      const upcomingLock = validKickoffs
+        .map(ms => ms - LOCK_OFFSET_MINUTES * 60 * 1000)
+        .find(lockMs => lockMs > now);
+
+      if (upcomingLock) return upcomingLock;
+      return validKickoffs[validKickoffs.length - 1] - LOCK_OFFSET_MINUTES * 60 * 1000;
+    }
+
+    function hasAnyOpenMatchup() {
+      return currentWeekMatchups.some(g => !isGameLocked(g));
+    }
+
+    function isWeekLocked() {
+      return currentWeekMatchups.length > 0 && !hasAnyOpenMatchup();
+    }
+
+    function updateLockCountdownUI() {
+      const lockMs = getNextLockTimestampMs();
+      const pill = document.getElementById("lock-countdown-pill");
+      const textEl = document.getElementById("lock-countdown-text");
+      const detailEl = document.getElementById("deadline-detail-pill");
+      const openBtn = document.getElementById("open-picker-btn");
+
+      if (!lockMs) {
+        textEl.innerText = "Open for Picks";
+        detailEl.innerText = "Lock Deadline: 1 hour before Sunday kickoff";
+        return;
+      }
+
+      const lockDate = new Date(lockMs);
+      const formattedLock = lockDate.toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      detailEl.innerText = `Next Lock (1h pre-kickoff): ${formattedLock}`;
+
+      const diffMs = lockMs - Date.now();
+      if (diffMs <= 0 && isWeekLocked()) {
+        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-rose-500/40 bg-rose-500/15 text-rose-300 flex items-center gap-1.5";
+        textEl.innerText = "ALL PICKS LOCKED";
+        openBtn.innerHTML = `<i class="fa-solid fa-lock text-xs"></i><span>Locked</span>`;
+      } else {
+        const totalMins = Math.max(0, Math.floor(diffMs / 60000));
+        const days = Math.floor(totalMins / (60 * 24));
+        const hrs = Math.floor((totalMins % (60 * 24)) / 60);
+        const mins = totalMins % 60;
+        const parts = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hrs > 0 || days > 0) parts.push(`${hrs}h`);
+        parts.push(`${mins}m`);
+
+        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-amber-500/40 bg-amber-500/15 text-amber-400 flex items-center gap-1.5";
+        textEl.innerText = `Locks in ${parts.join(" ")}`;
+        openBtn.innerHTML = `<i class="fa-solid fa-key text-xs"></i><span>Make Picks</span>`;
+      }
+    }
+
+    function initWeekSelector() {
+      const sel = document.getElementById("week-select");
+      sel.innerHTML = NFL_WEEKS.map(w =>
+        `<option value="${w.week}" ${w.week === appState.activeWeek ? "selected" : ""}>Week ${w.week}</option>`
+      ).join("");
+    }
+
+    function initFilterButtons() {
+      const container = document.getElementById("filter-buttons");
+      container.querySelectorAll("button[data-player]").forEach(b => b.remove());
+      PLAYERS.forEach(p => {
+        const btn = document.createElement("button");
+        btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg transition-all accent-btn cursor-pointer";
+        btn.innerText = p;
+        btn.setAttribute("data-player", p);
+        btn.onclick = () => handlePlayerFilterClick(p);
+        container.appendChild(btn);
+      });
+    }
+
+    function handlePlayerFilterClick(player) {
+      if (selectedPlayersFilter.size === PLAYERS.length) {
+        selectedPlayersFilter = new Set([player]);
+      } else if (selectedPlayersFilter.has(player)) {
+        selectedPlayersFilter.delete(player);
+        if (selectedPlayersFilter.size === 0) selectedPlayersFilter = new Set(PLAYERS);
+      } else {
+        selectedPlayersFilter.add(player);
+      }
+      updateFilterButtonStyles();
+      renderAll();
+    }
+
+    function selectAllFilter() {
+      selectedPlayersFilter = new Set(PLAYERS);
+      updateFilterButtonStyles();
+      renderAll();
+    }
+
+    function clearAllFilter() {
+      selectedPlayersFilter = new Set([PLAYERS[0]]);
+      updateFilterButtonStyles();
+      renderAll();
+    }
+
+    function updateFilterButtonStyles() {
+      document.querySelectorAll("#filter-buttons button[data-player]").forEach(btn => {
+        const p = btn.getAttribute("data-player");
+        btn.className = selectedPlayersFilter.has(p)
+          ? "px-2.5 py-1 text-xs font-bold rounded-lg transition-all accent-btn cursor-pointer"
+          : "px-2.5 py-1 text-xs font-bold rounded-lg transition-all text-sub hover:text-main cursor-pointer";
+      });
+    }
+
+    function checkTeamMatch(teamFullName, pickName) {
+      if (!teamFullName || !pickName || pickName === "__HIDDEN__") return false;
+      const a = teamFullName.toLowerCase().trim();
+      const b = pickName.toLowerCase().trim();
+      if (a === b || a.includes(b) || b.includes(a)) return true;
+      return a.split(" ").pop() === b.split(" ").pop();
+    }
+
+    async function changeActiveWeek(weekNum) {
+      appState.activeWeek = weekNum;
+      saveAppState();
+      await syncWeekData();
+    }
+
+    async function fetchWeekScheduleAndScores(weekNum) {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${weekNum}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const events = data.events || [];
+
+        if (events.length > 0) {
+          const parsedGames = events.map(event => {
+            const comp = event.competitions[0];
+            const homeComp = comp.competitors.find(c => c.homeAway === "home");
+            const awayComp = comp.competitors.find(c => c.homeAway === "away");
+            const homeScore = parseInt(homeComp.score || 0, 10);
+            const awayScore = parseInt(awayComp.score || 0, 10);
+            const statusState = event.status.type.state;
+            const statusDetail = event.status.type.shortDetail || event.status.type.detail;
+
+            let homeWinPct = 50;
+            let awayWinPct = 50;
+            if (comp.situation?.lastPlay?.probability) {
+              homeWinPct = Math.round((comp.situation.lastPlay.probability.homeWinPercentage || 0.5) * 100);
+              awayWinPct = 100 - homeWinPct;
+            } else if (homeScore !== awayScore && statusState === "in") {
+              const diff = homeScore - awayScore;
+              homeWinPct = Math.min(99, Math.max(1, Math.round(50 + diff * 3.5)));
+              awayWinPct = 100 - homeWinPct;
+            } else if (statusState === "post") {
+              homeWinPct = homeScore > awayScore ? 100 : (homeScore < awayScore ? 0 : 50);
+              awayWinPct = 100 - homeWinPct;
+            }
+
+            let leadingTeam = null;
+            let losingTeam = null;
+            let isTied = false;
+            if (homeScore > awayScore) {
+              leadingTeam = homeComp.team.displayName;
+              losingTeam = awayComp.team.displayName;
+            } else if (awayScore > homeScore) {
+              leadingTeam = awayComp.team.displayName;
+              losingTeam = homeComp.team.displayName;
+            } else {
+              isTied = true;
+            }
+
+            return {
+              away: awayComp.team.displayName,
+              home: homeComp.team.displayName,
+              kickoff: event.date || comp.date || null,
+              awayLogo: awayComp.team.logo || "",
+              homeLogo: homeComp.team.logo || "",
+              awayScore,
+              homeScore,
+              awayWinPct,
+              homeWinPct,
+              statusState,
+              statusDetail,
+              leadingTeam,
+              losingTeam,
+              isTied
+            };
+          });
+
+          const sundaysOnly = filterSundayOnly(parsedGames);
+          if (sundaysOnly.length > 0) return sundaysOnly;
+        }
+      } catch (err) {
+        console.warn("Schedule fetch fallback:", err);
+      }
+
+      const fallback = filterSundayOnly(FALLBACK_MATCHUPS_BY_WEEK[weekNum] || FALLBACK_MATCHUPS_BY_WEEK[11]);
+      return fallback.map(m => ({
+        away: m.away,
+        home: m.home,
+        kickoff: m.kickoff || null,
+        awayLogo: "",
+        homeLogo: "",
+        awayScore: 0,
+        homeScore: 0,
+        awayWinPct: 50,
+        homeWinPct: 50,
+        statusState: "pre",
+        statusDetail: "Scheduled",
+        leadingTeam: null,
+        losingTeam: null,
+        isTied: false
+      }));
+    }
+
+    async function syncWeekData() {
+      const icon = document.getElementById("refresh-icon");
+      icon.classList.add("fa-spin");
+
+      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek) || NFL_WEEKS[10];
+      document.getElementById("active-week-badge").innerHTML =
+        `<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> WEEK ${appState.activeWeek}`;
+      document.getElementById("week-date-range").innerText = weekMeta.label;
+      document.getElementById("banner-week-title").innerText = `Week ${appState.activeWeek} Sunday Matchups & Standings`;
+      document.getElementById("matchups-section-title").innerHTML =
+        `<i class="fa-solid fa-list-check" style="color: var(--accent-2);"></i> Week ${appState.activeWeek} Sunday Matchups & Picks`;
+      document.getElementById("modal-title").innerText = `Submit Week ${appState.activeWeek} Sunday Picks`;
+
+      currentWeekMatchups = await fetchWeekScheduleAndScores(appState.activeWeek);
+
+      if (SHARED_API_URL) {
+        try {
+          await registerKickoffsWithBackend(appState.activeWeek);
+          const sharedData = await fetchSharedWeekPicks(appState.activeWeek);
+          if (sharedData) {
+            if (sharedData.picks) {
+              appState.picksByWeek[appState.activeWeek] = sharedData.picks;
+              saveAppState();
+            }
+            if (sharedData.pinStatus) {
+              Object.keys(sharedData.pinStatus).forEach(p => {
+                if (sharedData.pinStatus[p] && !claimedPinsByPlayer[p]) {
+                  claimedPinsByPlayer[p] = "__REMOTE_SET__";
+                }
+              });
+              localStorage.setItem(PIN_CACHE_KEY, JSON.stringify(claimedPinsByPlayer));
+            }
+          }
+        } catch (err) {
+          console.warn("Shared sync issue:", err);
+        }
+      }
+
+      updateLockCountdownUI();
+      renderAll();
+
+      const now = new Date();
+      document.getElementById("last-updated").innerText =
+        `Synced ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+      icon.classList.remove("fa-spin");
+    }
+
+    function computeWeekStats() {
+      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      const stats = {};
+      const loneWolves = [];
+      let playersWithAnyPick = 0;
+
+      PLAYERS.forEach(p => {
+        stats[p] = {
+          priorWins: appState.priorWins[p] || 0,
+          prevRank: appState.prevRanks[p] || PLAYERS.length,
+          weekWins: 0,
+          pickedCount: 0
+        };
+      });
+
+      currentWeekMatchups.forEach(game => {
+        const key = getMatchupKey(game.away, game.home);
+        const gamePicks = weekPicks[key] || {};
+        const counts = {};
+        const entries = [];
+
+        PLAYERS.forEach(p => {
+          const pick = gamePicks[p];
+          if (pick) {
+            stats[p].pickedCount += 1;
+            if (pick !== "__HIDDEN__") {
+              counts[pick] = (counts[pick] || 0) + 1;
+              entries.push({ player: p, pick });
+
+              if (!game.isTied && game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
+                stats[p].weekWins += 1;
+              }
+            }
+          }
+        });
+
+        if (entries.length > 1 && isGameLocked(game)) {
+          entries.forEach(({ player, pick }) => {
+            if (counts[pick] === 1) {
+              loneWolves.push({ player, pick, matchup: key });
+            }
+          });
+        }
+      });
+
+      PLAYERS.forEach(p => {
+        if (stats[p].pickedCount > 0) playersWithAnyPick += 1;
+      });
+
+      document.getElementById("completion-pill").innerText =
+        `${playersWithAnyPick} / ${PLAYERS.length} Players Picked (Week ${appState.activeWeek})`;
+
+      return { stats, loneWolves };
+    }
+
+    function renderAll() {
+      const { stats, loneWolves } = computeWeekStats();
+      renderLeaderboard(stats);
+      renderBadges(stats, loneWolves);
+      renderMatchupsTable();
+    }
+
+    function renderLeaderboard(stats) {
+      const tbody = document.getElementById("leaderboard-body");
+      tbody.innerHTML = "";
+
+      const ranked = [...PLAYERS]
+        .map(player => ({
+          player,
+          priorWins: stats[player].priorWins,
+          prevRank: stats[player].prevRank,
+          weekWins: stats[player].weekWins,
+          totalWins: stats[player].priorWins + stats[player].weekWins
+        }))
+        .sort((a, b) => b.totalWins - a.totalWins || a.prevRank - b.prevRank);
+
+      const lowestTotal = ranked[ranked.length - 1]?.totalWins ?? 0;
+
+      let currentRank = 1;
+      ranked.forEach((row, idx) => {
+        if (idx > 0 && row.totalWins < ranked[idx - 1].totalWins) {
+          currentRank = idx + 1;
+        }
+
+        const rankDelta = row.prevRank - currentRank;
+        let moveBadge = `<span class="text-xs font-bold text-sub px-2 py-0.5 rounded-full border border-main" style="background: var(--bg-pill);">— 0</span>`;
+        if (rankDelta > 0) {
+          moveBadge = `<span class="text-xs font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">▲ +${rankDelta}</span>`;
+        } else if (rankDelta < 0) {
+          moveBadge = `<span class="text-xs font-black text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 rounded-full">▼ ${rankDelta}</span>`;
+        }
+
+        let rankBadge = `<span class="text-xs font-bold text-sub">#${currentRank}</span>`;
+        if (currentRank === 1) {
+          rankBadge = `<span class="accent-btn text-xs font-black px-2.5 py-1 rounded-full inline-block">1ST</span>`;
+        } else if (currentRank === 2) {
+          rankBadge = `<span class="bg-slate-500/25 text-main text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">2ND</span>`;
+        } else if (currentRank === 3) {
+          rankBadge = `<span class="bg-amber-500/20 text-amber-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">3RD</span>`;
+        } else if (row.totalWins === lowestTotal && ranked.length > 1) {
+          rankBadge = `<span class="bg-rose-500/15 text-rose-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">LAST</span>`;
+        }
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:opacity-95 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-3 sm:px-4 text-center">${rankBadge}</td>
+          <td class="py-3 px-3 sm:px-4 text-center">${moveBadge}</td>
+          <td class="py-3 px-4 font-bold text-main text-sm sm:text-base">${row.player}</td>
+          <td class="py-3 px-3 text-center text-sub font-semibold">#${row.prevRank}</td>
+          <td class="py-3 px-3 text-center text-sub">${row.priorWins}</td>
+          <td class="py-3 px-3 text-center font-extrabold text-main">+${row.weekWins}</td>
+          <td class="py-3 px-4 text-center font-black text-main text-base sm:text-lg">${row.totalWins}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderBadges(stats, loneWolves) {
+      const container = document.getElementById("badges-container");
+      const sortedSeason = [...PLAYERS].sort((a, b) => (stats[b].priorWins + stats[b].weekWins) - (stats[a].priorWins + stats[a].weekWins));
+      const leader = sortedSeason[0];
+      const leaderPts = stats[leader].priorWins + stats[leader].weekWins;
+
+      const sortedWeek = [...PLAYERS].sort((a, b) => stats[b].weekWins - stats[a].weekWins);
+      const weekTop = sortedWeek[0];
+
+      const biggestClimber = [...PLAYERS].sort((a, b) => {
+        const rankA = sortedSeason.indexOf(a) + 1;
+        const rankB = sortedSeason.indexOf(b) + 1;
+        return (stats[b].prevRank - rankB) - (stats[a].prevRank - rankA);
+      })[0];
+
+      const loneWolfHtml = loneWolves.length
+        ? loneWolves.slice(0, 3).map(lw => `<b>${lw.player}</b> (${lw.pick})`).join(", ")
+        : "Reveals as games lock";
+
+      container.innerHTML = `
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-crown text-xl text-amber-400"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Current Leader</div>
+            <div class="text-sm sm:text-base font-extrabold text-main">${leader} (${leaderPts} Wins)</div>
+          </div>
+        </div>
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-arrow-trend-up text-xl text-emerald-400"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Week ${appState.activeWeek} Top / Mover</div>
+            <div class="text-sm sm:text-base font-extrabold text-main">${weekTop} (+${stats[weekTop].weekWins}) • ${biggestClimber}</div>
+          </div>
+        </div>
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-user-secret text-xl text-sub"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Solo Picks</div>
+            <div class="text-xs font-medium text-main mt-0.5">${loneWolfHtml}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMatchupsTable() {
+      const headRow = document.getElementById("table-head-row");
+      const tbody = document.getElementById("matchups-body");
+      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      const visiblePlayers = PLAYERS.filter(p => selectedPlayersFilter.has(p));
+
+      document.getElementById("visibility-helper-text").innerText =
+        "Sunday matchups only • Picks stay hidden until 1 hour before each game's kickoff.";
+
+      headRow.innerHTML = `
+        <th class="py-3.5 px-3 w-[200px] sm:w-[250px] sticky-col z-20">Matchup</th>
+        <th class="py-3.5 px-3 w-40 text-center">Score / Status / Win %</th>
+        <th class="py-3.5 px-2 w-28 text-center">Consensus</th>
+        ${visiblePlayers.map(p => `<th class="py-3.5 px-2 text-center w-24">${p}</th>`).join("")}
+      `;
+
+      tbody.innerHTML = "";
+
+      currentWeekMatchups.forEach(game => {
+        const key = getMatchupKey(game.away, game.home);
+        const gamePicks = weekPicks[key] || {};
+        const gameLocked = isGameLocked(game);
+
+        const counts = {};
+        PLAYERS.forEach(p => {
+          if (gamePicks[p]) counts[gamePicks[p]] = (counts[gamePicks[p]] || 0) + 1;
+        });
+        const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+        let consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-sub" style="background: var(--bg-pill);">Open</span>`;
+        if (sortedCounts.length > 0) {
+          const totalSubmitted = Object.keys(gamePicks).length;
+          if (!gameLocked) {
+            consensusBadge = `<span class="bg-amber-500/15 text-amber-400 border border-amber-500/35 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${totalSubmitted}/${PLAYERS.length} In</span>`;
+          } else {
+            const [topTeam, topCount] = sortedCounts[0];
+            if (totalSubmitted === PLAYERS.length && sortedCounts.length === 1) {
+              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap accent-btn">${topTeam.split(" ").pop()} ${topCount}-0</span>`;
+            } else {
+              const secondCount = sortedCounts[1]?.[1] || 0;
+              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-main" style="background: var(--bg-pill);">${topCount}-${secondCount} Split</span>`;
+            }
+          }
+        }
+
+        let statusBadgeClass = "border border-main text-sub";
+        let liveDot = "";
+        if (game.statusState === "in") {
+          statusBadgeClass = "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold";
+          liveDot = `<span class="live-pulse mr-1"></span>`;
+        } else if (game.statusState === "post") {
+          statusBadgeClass = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold";
+        }
+
+        const awayLogo = game.awayLogo ? `<img src="${game.awayLogo}" class="w-4 h-4 object-contain inline-block mr-1" alt="">` : "";
+        const homeLogo = game.homeLogo ? `<img src="${game.homeLogo}" class="w-4 h-4 object-contain inline-block ml-1" alt="">` : "";
+
+        const playerCells = visiblePlayers.map(player => {
+          const pick = gamePicks[player];
+          if (!pick) {
+            return `<td class="py-3 px-1.5 text-center"><div class="py-1.5 px-1.5 pick-empty text-xs">—</div></td>`;
+          }
+
+          if (!gameLocked && (pick === "__HIDDEN__" || unlockedPlayerThisSession !== player)) {
+            return `
+              <td class="py-3 px-1.5 text-center">
+                <div class="py-1.5 px-1.5 pick-hidden text-[10px] sm:text-xs flex items-center justify-center gap-1 whitespace-nowrap">
+                  <i class="fa-solid fa-lock text-[9px]"></i><span>Hidden</span>
+                </div>
+              </td>
+            `;
+          }
+
+          let cls = "pick-neutral";
+          let icon = "";
+          if (game.statusState === "in" || game.statusState === "post") {
+            if (game.isTied) {
+              cls = "pick-tied";
+              icon = `<i class="fa-solid fa-minus text-[9px] ml-1 opacity-70"></i>`;
+            } else if (game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
+              cls = "pick-leading";
+              icon = game.statusState === "post" ? `<i class="fa-solid fa-check ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-up ml-1"></i>`;
+            } else if (game.losingTeam && checkTeamMatch(game.losingTeam, pick)) {
+              cls = "pick-losing";
+              icon = game.statusState === "post" ? `<i class="fa-solid fa-xmark ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-down ml-1"></i>`;
+            }
+          }
+
+          const shortLabel = pick.split(" ").pop();
+          return `
+            <td class="py-3 px-1.5 text-center">
+              <div class="py-1.5 px-1.5 ${cls} text-[11px] sm:text-xs flex items-center justify-center whitespace-nowrap" title="${pick}">
+                <span>${shortLabel}</span>${icon}
+              </div>
+            </td>
+          `;
+        }).join("");
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:opacity-95 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-medium text-main sticky-col">
+            <div class="text-xs sm:text-sm leading-tight space-y-1">
+              <div class="flex items-center">${awayLogo}<span class="font-semibold truncate">${game.away}</span></div>
+              <div class="text-[10px] text-sub font-bold uppercase tracking-wider pl-4">at</div>
+              <div class="flex items-center"><span class="font-semibold truncate">${game.home}</span>${homeLogo}</div>
+            </div>
+          </td>
+          <td class="py-3 px-3 text-center">
+            <div class="font-black text-main text-sm sm:text-base">${game.awayScore} - ${game.homeScore}</div>
+            <div class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full ${statusBadgeClass} mt-0.5 whitespace-nowrap">
+              ${liveDot}${game.statusDetail}
+            </div>
+            <div class="w-full h-1.5 rounded-full overflow-hidden flex mt-1.5 border border-main">
+              <div class="h-full" style="width:${game.awayWinPct}%; background: var(--accent);"></div>
+              <div class="h-full opacity-55" style="width:${game.homeWinPct}%; background: var(--accent-2);"></div>
+            </div>
+          </td>
+          <td class="py-3 px-2 text-center">${consensusBadge}</td>
+          ${playerCells}
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openPickerModal(initialPlayer = "Dad") {
+      if (!hasAnyOpenMatchup()) {
+        alert("All Sunday games for this week have locked or started.");
+        return;
+      }
+      modalSelectedPlayer = initialPlayer;
+      unlockedPlayerThisSession = null;
+      modalDraftPicks = {};
+      renderModalPlayerPills();
+      updatePinGateUI();
+      document.getElementById("picker-modal").classList.remove("hidden");
+    }
+
+    function closePickerModal() {
+      document.getElementById("picker-modal").classList.add("hidden");
+      renderMatchupsTable();
+    }
+
+    function renderModalPlayerPills() {
+      const pills = document.getElementById("modal-player-pills");
+      pills.innerHTML = PLAYERS.map(p => {
+        const active = p === modalSelectedPlayer;
+        return `
+          <button type="button" onclick="selectModalPlayer('${p}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+            active
+              ? "accent-btn shadow-md"
+              : "border border-main text-sub hover:text-main"
+          }" style="${active ? "" : "background: var(--bg-pill);"}">${p}</button>
+        `;
+      }).join("");
+    }
+
+    function selectModalPlayer(player) {
+      modalSelectedPlayer = player;
+      unlockedPlayerThisSession = null;
+      modalDraftPicks = {};
+      renderModalPlayerPills();
+      updatePinGateUI();
+    }
+
+    function updatePinGateUI() {
+      const isUnlocked = unlockedPlayerThisSession === modalSelectedPlayer;
+      const cached = claimedPinsByPlayer[modalSelectedPlayer];
+      const hasExistingPin = Boolean(cached);
+
+      document.getElementById("pin-player-label").innerText = modalSelectedPlayer;
+      document.getElementById("pin-mode-label").innerText = hasExistingPin ? "Enter PIN" : "Create Your PIN";
+      document.getElementById("pin-status-hint").innerText = hasExistingPin
+        ? "PIN already set for this player"
+        : "First time picking? Choose a 4+ character PIN to claim your sheet";
+      document.getElementById("unlock-pin-btn").innerText = hasExistingPin ? "Unlock Picks" : "Set PIN & Unlock";
+      document.getElementById("unlocked-player-name").innerText = modalSelectedPlayer;
+
+      const pinInput = document.getElementById("pin-input");
+      pinInput.value = (cached && cached !== "__REMOTE_SET__") ? cached : "";
+      pinInput.placeholder = hasExistingPin ? "Enter your PIN" : "Create PIN (4+ chars)";
+      document.getElementById("pin-error-msg").classList.add("hidden");
+
+      document.getElementById("pin-gate-box").classList.toggle("hidden", isUnlocked);
+      document.getElementById("unlocked-picks-section").classList.toggle("hidden", !isUnlocked);
+      document.getElementById("clear-player-btn").classList.toggle("hidden", !isUnlocked);
+      document.getElementById("save-picks-btn").classList.toggle("hidden", !isUnlocked);
+
+      if (isUnlocked) {
+        loadDraftForPlayer(modalSelectedPlayer);
+        renderModalMatchups();
+      }
+    }
+
+    function verifySelectedPlayerPin() {
+      const entered = (document.getElementById("pin-input").value || "").trim();
+      const errorEl = document.getElementById("pin-error-msg");
+
+      if (entered.length < 4) {
+        errorEl.innerText = "Please enter at least 4 characters for your PIN.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      const cached = claimedPinsByPlayer[modalSelectedPlayer];
+      if (cached && cached !== "__REMOTE_SET__" && cached !== entered) {
+        errorEl.innerText = "Incorrect PIN for " + modalSelectedPlayer + ".";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      if (!cached || cached === "__REMOTE_SET__") {
+        claimedPinsByPlayer[modalSelectedPlayer] = entered;
+        localStorage.setItem(PIN_CACHE_KEY, JSON.stringify(claimedPinsByPlayer));
+      }
+
+      lastVerifiedPinForPlayer[modalSelectedPlayer] = entered;
+      unlockedPlayerThisSession = modalSelectedPlayer;
+      errorEl.classList.add("hidden");
+      updatePinGateUI();
+      renderMatchupsTable();
+    }
+
+    function loadDraftForPlayer(player) {
+      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      modalDraftPicks = {};
+      currentWeekMatchups.forEach(g => {
+        const key = getMatchupKey(g.away, g.home);
+        const existing = weekPicks[key]?.[player];
+        if (existing && existing !== "__HIDDEN__") {
+          modalDraftPicks[key] = existing;
+        }
+      });
+    }
+
+    function chooseTeamInModal(matchupKey, teamName, gameLocked) {
+      if (gameLocked || unlockedPlayerThisSession !== modalSelectedPlayer) return;
+      modalDraftPicks[matchupKey] = teamName;
+      renderModalMatchups();
+    }
+
+    function clearCurrentPlayerPicks() {
+      if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
+      currentWeekMatchups.forEach(g => {
+        if (!isGameLocked(g)) {
+          delete modalDraftPicks[getMatchupKey(g.away, g.home)];
+        }
+      });
+      renderModalMatchups();
+    }
+
+    function renderModalMatchups() {
+      const list = document.getElementById("modal-matchups-list");
+      let pickedCount = 0;
+
+      list.innerHTML = currentWeekMatchups.map(g => {
+        const key = getMatchupKey(g.away, g.home);
+        const chosen = modalDraftPicks[key] || "";
+        if (chosen) pickedCount += 1;
+
+        const locked = isGameLocked(g);
+        const awaySelected = chosen === g.away;
+        const homeSelected = chosen === g.home;
+
+        return `
+          <div class="border border-main rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${locked ? "opacity-60" : ""}" style="background: var(--bg-pill);">
+            <div class="text-xs font-bold text-main">
+              <span>${g.away}</span> <span class="text-sub">@</span> <span>${g.home}</span>
+              <span class="block text-[10px] text-sub font-normal">${locked ? "Locked (within 1h of kickoff)" : g.statusDetail}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:w-72 shrink-0">
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.away.replace(/'/g, "\\'")}', ${locked})" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+                awaySelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
+              }" style="${awaySelected ? "" : "background: var(--bg-page);"}">${g.away}</button>
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.home.replace(/'/g, "\\'")}', ${locked})" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+                homeSelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
+              }" style="${homeSelected ? "" : "background: var(--bg-page);"}">${g.home}</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("modal-pick-progress").innerText =
+        `${pickedCount} / ${currentWeekMatchups.length} selected`;
+    }
+
+    async function saveCurrentPlayerPicks() {
+      if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
+
+      const pin = lastVerifiedPinForPlayer[modalSelectedPlayer] || "";
+      const openDraftPicks = {};
+      currentWeekMatchups.forEach(g => {
+        if (!isGameLocked(g)) {
+          const key = getMatchupKey(g.away, g.home);
+          openDraftPicks[key] = modalDraftPicks[key] || "";
+        }
+      });
+
+      const result = await submitPicksToBackend(
+        appState.activeWeek,
+        modalSelectedPlayer,
+        pin,
+        openDraftPicks
+      );
+
+      if (!result || !result.ok) {
+        alert(result?.error || "Could not save picks.");
+        return;
+      }
+
+      if (!appState.picksByWeek[appState.activeWeek]) {
+        appState.picksByWeek[appState.activeWeek] = {};
+      }
+      const weekPicks = appState.picksByWeek[appState.activeWeek];
+      Object.keys(openDraftPicks).forEach(key => {
+        if (!weekPicks[key]) weekPicks[key] = {};
+        if (openDraftPicks[key]) {
+          weekPicks[key][modalSelectedPlayer] = openDraftPicks[key];
+        } else {
+          delete weekPicks[key][modalSelectedPlayer];
+        }
+      });
+      saveAppState();
+
+      await syncWeekData();
+      unlockedPlayerThisSession = null;
+      closePickerModal();
+    }
+
+    function lockWeekSnapshot() {
+      const { stats } = computeWeekStats();
+      const ranked = [...PLAYERS]
+        .map(p => ({ player: p, total: stats[p].priorWins + stats[p].weekWins }))
+        .sort((a, b) => b.total - a.total);
+
+      let rank = 1;
+      ranked.forEach((entry, idx) => {
+        if (idx > 0 && entry.total < ranked[idx - 1].total) rank = idx + 1;
+        appState.priorWins[entry.player] = entry.total;
+        appState.prevRanks[entry.player] = rank;
+      });
+
+      appState.activeWeek = Math.min(18, appState.activeWeek + 1);
+      saveAppState();
+      initWeekSelector();
+      syncWeekData();
+    }
+
+    initThemeSelector();
+    initWeekSelector();
+    initFilterButtons();
+    syncWeekData();
+    setInterval(() => {
+      updateLockCountdownUI();
+      renderMatchupsTable();
+    }, 15000);
+    setInterval(syncWeekData, 30000);
+  </script>
+</body>
+</html>
