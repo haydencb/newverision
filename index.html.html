@@ -418,7 +418,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "nfl_pickem_2026_v11_sunday_fix";
+    const STORAGE_KEY = "nfl_pickem_2026_v12_sat_unlock";
     const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
     const LOCK_OFFSET_MINUTES = 60;
     const GAME_TIMEZONE = "America/New_York";
@@ -868,28 +868,43 @@
     }
 
     function getSundaySlateLockMs() {
-      const nowMs = Date.now();
-      const sundayKickoffs = filterSundayOnly(currentWeekMatchups, appState.activeWeek)
+      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek);
+      if (!weekMeta || !weekMeta.sunday) return null;
+
+      // Default lock: Sunday of active week at 12:00 PM EST (1h before 1:00 PM EST kickoff)
+      const defaultLockMs = Date.parse(`${weekMeta.sunday}T12:00:00-05:00`);
+
+      const validSundayKickoffs = filterSundayOnly(currentWeekMatchups, appState.activeWeek)
         .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
-        .filter(ms => !Number.isNaN(ms) && ms > nowMs - 12 * 3600 * 1000)
+        .filter(ms => {
+          if (Number.isNaN(ms)) return false;
+          const info = getETDateAndWeekday(ms);
+          return info && info.dateStr === weekMeta.sunday && info.weekday === "Sun";
+        })
         .sort((a, b) => a - b);
 
-      if (sundayKickoffs.length > 0) {
-        return sundayKickoffs[0] - LOCK_OFFSET_MINUTES * 60 * 1000;
+      if (validSundayKickoffs.length > 0) {
+        return validSundayKickoffs[0] - LOCK_OFFSET_MINUTES * 60 * 1000;
       }
 
-      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek);
-      if (weekMeta && weekMeta.sunday) {
-        // 1:00 PM ET first Sunday kickoff minus 60 min = 12:00 PM ET Sunday
-        const defaultFirstKickoffMs = Date.parse(`${weekMeta.sunday}T13:00:00-05:00`);
-        if (!Number.isNaN(defaultFirstKickoffMs)) {
-          return defaultFirstKickoffMs - LOCK_OFFSET_MINUTES * 60 * 1000;
-        }
-      }
-      return null;
+      return Number.isNaN(defaultLockMs) ? null : defaultLockMs;
     }
 
     function isSlateLocked() {
+      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek);
+      if (weekMeta && weekMeta.sunday) {
+        const todayET = new Intl.DateTimeFormat("en-CA", {
+          timeZone: GAME_TIMEZONE,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        }).format(new Date());
+        // Never lock on days prior to the week's Sunday (e.g., Saturday before the slate)
+        if (todayET < weekMeta.sunday) {
+          return false;
+        }
+      }
+
       const lockMs = getSundaySlateLockMs();
       if (!lockMs) return false;
       return Date.now() >= lockMs;
@@ -919,11 +934,7 @@
       detailEl.innerText = `Sunday Slate Lock (1h pre-1st game): ${formattedLock}`;
 
       const diffMs = lockMs - Date.now();
-      if (diffMs <= 0) {
-        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-rose-500/40 bg-rose-500/15 text-rose-300 flex items-center gap-1.5";
-        textEl.innerText = "SUNDAY PICKS LOCKED";
-        openBtn.innerHTML = `<i class="fa-solid fa-lock text-xs"></i><span>Locked</span>`;
-      } else {
+      if (!isSlateLocked() && diffMs > 0) {
         const totalMins = Math.max(0, Math.floor(diffMs / 60000));
         const days = Math.floor(totalMins / (60 * 24));
         const hrs = Math.floor((totalMins % (60 * 24)) / 60);
@@ -936,6 +947,10 @@
         pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-amber-500/40 bg-amber-500/15 text-amber-400 flex items-center gap-1.5";
         textEl.innerText = `Locks in ${parts.join(" ")}`;
         openBtn.innerHTML = `<i class="fa-solid fa-key text-xs"></i><span>Make Picks</span>`;
+      } else {
+        pill.className = "px-3 py-2 rounded-xl text-xs font-extrabold border border-rose-500/40 bg-rose-500/15 text-rose-300 flex items-center gap-1.5";
+        textEl.innerText = "SUNDAY PICKS LOCKED";
+        openBtn.innerHTML = `<i class="fa-solid fa-lock text-xs"></i><span>Locked</span>`;
       }
     }
 
