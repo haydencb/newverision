@@ -418,7 +418,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "nfl_pickem_2026_v10_sunday_only";
+    const STORAGE_KEY = "nfl_pickem_2026_v11_sunday_fix";
     const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
     const LOCK_OFFSET_MINUTES = 60;
     const GAME_TIMEZONE = "America/New_York";
@@ -667,7 +667,6 @@
 
     const PLAYERS = ["Dad", "Mom", "Hunter", "Abby", "Adam", "Hayden", "V"];
 
-    // `sunday` is the exact Sunday date of each NFL week (ET)
     const NFL_WEEKS = [
       { week: 1,  label: "Sep 13, 2026",  sunday: "2026-09-13" },
       { week: 2,  label: "Sep 20, 2026",  sunday: "2026-09-20" },
@@ -689,7 +688,6 @@
       { week: 18, label: "Jan 10, 2027",  sunday: "2027-01-10" }
     ];
 
-    // Captured from Week 10 results table (raw wins)
     const WEEK_10_WINS = {
       "V": 9,
       "Abby": 9,
@@ -700,7 +698,6 @@
       "Adam": 9
     };
 
-    // Total Season Wins after Week 10
     const INITIAL_PRIOR_WINS = {
       "V": 98,
       "Abby": 96,
@@ -711,7 +708,6 @@
       "Hunter": 81
     };
 
-    // Ranking after Week 10
     const INITIAL_PREV_RANKS = {
       "V": 1,
       "Abby": 2,
@@ -722,10 +718,10 @@
       "Hunter": 7
     };
 
-    // Sunday-only fallback matchups (Thursday/Monday games excluded)
+    // Sunday-only fallback matchups (Sunday, Nov 22, 2026)
     const FALLBACK_MATCHUPS_BY_WEEK = {
       10: [
-        { away: "New England Patriots", home: "Detroit Lions", kickoff: "2026-11-15T14:30:00Z" },
+        { away: "New England Patriots", home: "Detroit Lions", kickoff: "2026-11-15T18:00:00Z" },
         { away: "Buffalo Bills", home: "New York Jets", kickoff: "2026-11-15T18:00:00Z" },
         { away: "Miami Dolphins", home: "Indianapolis Colts", kickoff: "2026-11-15T18:00:00Z" },
         { away: "Kansas City Chiefs", home: "Atlanta Falcons", kickoff: "2026-11-15T18:00:00Z" },
@@ -842,6 +838,7 @@
         return {
           ...defaultState,
           ...parsed,
+          activeWeek: typeof parsed.activeWeek === "number" ? parsed.activeWeek : fallbackWeek,
           week10Wins: { ...WEEK_10_WINS, ...(parsed.week10Wins || {}) },
           priorWins: { ...INITIAL_PRIOR_WINS, ...(parsed.priorWins || {}) },
           prevRanks: { ...INITIAL_PREV_RANKS, ...(parsed.prevRanks || {}) },
@@ -871,13 +868,25 @@
     }
 
     function getSundaySlateLockMs() {
-      const sundayKickoffs = currentWeekMatchups
+      const nowMs = Date.now();
+      const sundayKickoffs = filterSundayOnly(currentWeekMatchups, appState.activeWeek)
         .map(g => (g.kickoff ? Date.parse(g.kickoff) : NaN))
-        .filter(ms => !Number.isNaN(ms))
+        .filter(ms => !Number.isNaN(ms) && ms > nowMs - 12 * 3600 * 1000)
         .sort((a, b) => a - b);
 
-      if (sundayKickoffs.length === 0) return null;
-      return sundayKickoffs[0] - LOCK_OFFSET_MINUTES * 60 * 1000;
+      if (sundayKickoffs.length > 0) {
+        return sundayKickoffs[0] - LOCK_OFFSET_MINUTES * 60 * 1000;
+      }
+
+      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek);
+      if (weekMeta && weekMeta.sunday) {
+        // 1:00 PM ET first Sunday kickoff minus 60 min = 12:00 PM ET Sunday
+        const defaultFirstKickoffMs = Date.parse(`${weekMeta.sunday}T13:00:00-05:00`);
+        if (!Number.isNaN(defaultFirstKickoffMs)) {
+          return defaultFirstKickoffMs - LOCK_OFFSET_MINUTES * 60 * 1000;
+        }
+      }
+      return null;
     }
 
     function isSlateLocked() {
@@ -930,7 +939,6 @@
       }
     }
 
-    // Rolls forward on Monday at 12:01 AM ET (Sunday games only)
     function shouldAutoRolloverNow(weekNum) {
       if (weekNum >= 18) return false;
       if (appState.autoRolledWeeks[weekNum]) return false;
@@ -959,7 +967,6 @@
       const [hh, mm] = timeStr.split(":").map(Number);
       const minutesSinceMidnightET = hh * 60 + mm;
 
-      // Monday after that week's Sunday (e.g. Nov 23, 2026 at 00:01 AM ET for Week 11 Sunday Nov 22)
       if (etDate > weekMeta.sunday) {
         if (weekday === AUTO_ROLLOVER_WEEKDAY_SHORT) {
           return minutesSinceMidnightET >= AUTO_ROLLOVER_MIN_MINUTES_ET;
@@ -1289,7 +1296,6 @@
         };
       });
 
-      // Only iterate over Sunday matchups in `currentWeekMatchups`
       const sundayGames = filterSundayOnly(currentWeekMatchups, weekNum);
       sundayGames.forEach(game => {
         const key = getMatchupKey(game.away, game.home);
