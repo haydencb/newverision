@@ -190,9 +190,12 @@
             <span id="active-week-badge" class="text-[10px] sm:text-xs font-extrabold accent-btn px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> WEEK 11
             </span>
+            <span id="double-week-badge" class="hidden text-[10px] sm:text-xs font-black bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              <i class="fa-solid fa-fire mr-1"></i>2X DOUBLE WEEK
+            </span>
           </div>
           <p class="text-[11px] sm:text-xs text-sub">
-            <span id="week-date-range">Nov 22, 2026</span> • Sunday Slate • All Picks Lock 1h Before First Sunday Kickoff
+            <span id="week-date-range">Nov 22, 2026</span> • Sundays Only • All Picks Lock 1h Before First Sunday Kickoff
           </p>
         </div>
       </div>
@@ -231,15 +234,16 @@
   <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
     <div class="bg-card rounded-2xl border p-5 sm:p-6">
       <div class="max-w-3xl">
-        <div class="inline-flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider border border-main text-sub" style="background: var(--bg-pill);">
+        <div class="inline-flex flex-wrap items-center gap-2 text-xs font-bold px-3 py-1 rounded-full mb-3 uppercase tracking-wider border border-main text-sub" style="background: var(--bg-pill);">
           <i class="fa-solid fa-shield-halved"></i>
-          Sunday Slate Only • Full-Day Lock 1h Before First Kickoff
+          <span>Sundays Only • Full-Day Lock 1h Before First Kickoff</span>
+          <span id="double-week-banner-tag" class="hidden text-amber-400 font-black">• 2X PTS ACTIVE (WEEKS 11 & 17)</span>
         </div>
         <h2 id="banner-week-title" class="text-xl sm:text-3xl font-black tracking-tight text-main mb-2">
           Week 11 Sunday Matchups & Standings
         </h2>
-        <p class="text-xs sm:text-sm text-sub leading-relaxed mb-4">
-          Submit all of your Sunday picks ahead of <strong>1 hour before the first Sunday game</strong>. PINs must be entered manually each session and are never cached locally.
+        <p id="banner-week-subtitle" class="text-xs sm:text-sm text-sub leading-relaxed mb-4">
+          Only <strong>Sunday</strong> games count toward standings (non-Sunday games excluded). Picks lock <strong>1 hour before the first Sunday kickoff</strong>, and snapshots auto-roll forward <strong>Monday at 12:01 AM ET</strong>. PINs are entered manually each session and never cached locally.
         </p>
         <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
           <span id="completion-pill" class="border border-main font-bold px-3 py-1.5 rounded-lg text-main" style="background: var(--bg-pill);">
@@ -248,8 +252,8 @@
           <span id="deadline-detail-pill" class="border border-main font-semibold px-3 py-1.5 rounded-lg text-sub" style="background: var(--bg-pill);">
             Sunday Slate Lock: Calculating...
           </span>
-          <button onclick="lockWeekSnapshot()" class="border border-main hover:opacity-90 font-bold px-3 py-1.5 rounded-lg text-main transition-colors cursor-pointer" style="background: var(--bg-pill);">
-            <i class="fa-solid fa-flag-checkered mr-1"></i> Save Week Snapshot
+          <button onclick="lockWeekSnapshot({ manual: true })" class="border border-main hover:opacity-90 font-bold px-3 py-1.5 rounded-lg text-main transition-colors cursor-pointer" style="background: var(--bg-pill);">
+            <i class="fa-solid fa-flag-checkered mr-1"></i> Save Week Snapshot Now
           </button>
         </div>
       </div>
@@ -266,7 +270,7 @@
             <i class="fa-solid fa-trophy" style="color: var(--accent-2);"></i>
             Standings & Week-over-Week Movement
           </h2>
-          <p class="text-xs text-sub mt-0.5">Current rank compared against prior week's rank</p>
+          <p class="text-xs text-sub mt-0.5">Sunday games only • Weeks 11 & 17 pay 2x points per winning Sunday pick</p>
         </div>
 
         <div class="flex items-center space-x-3 text-[11px] sm:text-xs font-semibold text-sub px-3 py-1.5 rounded-lg border border-main" style="background: var(--bg-pill);">
@@ -285,7 +289,7 @@
               <th class="py-3 px-4 font-bold text-main">Player</th>
               <th class="py-3 px-3 text-center w-28">Prev Rank</th>
               <th class="py-3 px-3 text-center w-28">Prior Wins</th>
-              <th class="py-3 px-3 text-center w-28">Week Wins</th>
+              <th class="py-3 px-3 text-center w-32" id="week-wins-header">Sun Wins</th>
               <th class="py-3 px-4 text-center w-32 font-extrabold text-main">Total Wins</th>
             </tr>
           </thead>
@@ -414,10 +418,17 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "nfl_pickem_2026_v8_week10_captured";
+    const STORAGE_KEY = "nfl_pickem_2026_v10_sunday_only";
     const THEME_STORAGE_KEY = "nfl_pickem_selected_theme_v1";
     const LOCK_OFFSET_MINUTES = 60;
     const GAME_TIMEZONE = "America/New_York";
+
+    // Double-point weeks (2x points per winning Sunday pick)
+    const DOUBLE_POINT_WEEKS = new Set([11, 17]);
+
+    // Auto-rollover: Monday 00:01 AM ET (Sunday games only; Monday games ignored)
+    const AUTO_ROLLOVER_WEEKDAY_SHORT = "Mon";
+    const AUTO_ROLLOVER_MIN_MINUTES_ET = 1; // 12:01 AM ET
 
     const SHARED_API_URL = "https://script.google.com/macros/s/AKfycbwfOY66BryGr5z0OCvPH-GVIHO33_MhwgCfcdKV2E35LnvaCJthUWGEXY7II6mB_kFxLA/exec";
 
@@ -656,48 +667,76 @@
 
     const PLAYERS = ["Dad", "Mom", "Hunter", "Abby", "Adam", "Hayden", "V"];
 
+    // `sunday` is the exact Sunday date of each NFL week (ET)
     const NFL_WEEKS = [
-      { week: 1,  label: "Sep 13, 2026",  start: "2026-09-09", end: "2026-09-15" },
-      { week: 2,  label: "Sep 20, 2026",  start: "2026-09-16", end: "2026-09-22" },
-      { week: 3,  label: "Sep 27, 2026",  start: "2026-09-23", end: "2026-09-29" },
-      { week: 4,  label: "Oct 4, 2026",   start: "2026-09-30", end: "2026-10-06" },
-      { week: 5,  label: "Oct 11, 2026",  start: "2026-10-07", end: "2026-10-13" },
-      { week: 6,  label: "Oct 18, 2026",  start: "2026-10-14", end: "2026-10-20" },
-      { week: 7,  label: "Oct 25, 2026",  start: "2026-10-21", end: "2026-10-27" },
-      { week: 8,  label: "Nov 1, 2026",   start: "2026-10-28", end: "2026-11-03" },
-      { week: 9,  label: "Nov 8, 2026",   start: "2026-11-04", end: "2026-11-10" },
-      { week: 10, label: "Nov 15, 2026",  start: "2026-11-11", end: "2026-11-17" },
-      { week: 11, label: "Nov 22, 2026",  start: "2026-11-18", end: "2026-11-24" },
-      { week: 12, label: "Nov 29, 2026",  start: "2026-11-25", end: "2026-12-01" },
-      { week: 13, label: "Dec 6, 2026",   start: "2026-12-02", end: "2026-12-08" },
-      { week: 14, label: "Dec 13, 2026",  start: "2026-12-09", end: "2026-12-15" },
-      { week: 15, label: "Dec 20, 2026",  start: "2026-12-16", end: "2026-12-22" },
-      { week: 16, label: "Dec 27, 2026",  start: "2026-12-23", end: "2026-12-31" },
-      { week: 17, label: "Jan 3, 2027",   start: "2027-01-01", end: "2027-01-07" },
-      { week: 18, label: "Jan 10, 2027",  start: "2027-01-08", end: "2027-01-16" }
+      { week: 1,  label: "Sep 13, 2026",  sunday: "2026-09-13" },
+      { week: 2,  label: "Sep 20, 2026",  sunday: "2026-09-20" },
+      { week: 3,  label: "Sep 27, 2026",  sunday: "2026-09-27" },
+      { week: 4,  label: "Oct 4, 2026",   sunday: "2026-10-04" },
+      { week: 5,  label: "Oct 11, 2026",  sunday: "2026-10-11" },
+      { week: 6,  label: "Oct 18, 2026",  sunday: "2026-10-18" },
+      { week: 7,  label: "Oct 25, 2026",  sunday: "2026-10-25" },
+      { week: 8,  label: "Nov 1, 2026",   sunday: "2026-11-01" },
+      { week: 9,  label: "Nov 8, 2026",   sunday: "2026-11-08" },
+      { week: 10, label: "Nov 15, 2026",  sunday: "2026-11-15" },
+      { week: 11, label: "Nov 22, 2026",  sunday: "2026-11-22" },
+      { week: 12, label: "Nov 29, 2026",  sunday: "2026-11-29" },
+      { week: 13, label: "Dec 6, 2026",   sunday: "2026-12-06" },
+      { week: 14, label: "Dec 13, 2026",  sunday: "2026-12-13" },
+      { week: 15, label: "Dec 20, 2026",  sunday: "2026-12-20" },
+      { week: 16, label: "Dec 27, 2026",  sunday: "2026-12-27" },
+      { week: 17, label: "Jan 3, 2027",   sunday: "2027-01-03" },
+      { week: 18, label: "Jan 10, 2027",  sunday: "2027-01-10" }
     ];
 
-    const WEEK_10_RESULTS = [
-      { away: "New England Patriots", home: "Detroit Lions", winner: "Detroit Lions" },
-      { away: "Buffalo Bills", home: "New York Jets", winner: "Buffalo Bills" },
-      { away: "Miami Dolphins", home: "Indianapolis Colts", winner: "Indianapolis Colts" },
-      { away: "Kansas City Chiefs", home: "Atlanta Falcons", winner: "Kansas City Chiefs" },
-      { away: "Minnesota Vikings", home: "Green Bay Packers", winner: "Minnesota Vikings" },
-      { away: "Jacksonville Jaguars", home: "Tennessee Titans", winner: "Jacksonville Jaguars" },
-      { away: "Houston Texans", home: "Cleveland Browns", winner: "Cleveland Browns" },
-      { away: "Carolina Panthers", home: "New Orleans Saints", winner: "Carolina Panthers" },
-      { away: "Los Angeles Rams", home: "Arizona Cardinals", winner: "Los Angeles Rams" },
-      { away: "Seattle Seahawks", home: "Las Vegas Raiders", winner: "Seattle Seahawks" },
-      { away: "San Francisco 49ers", home: "Dallas Cowboys", winner: "San Francisco 49ers" },
-      { away: "Pittsburgh Steelers", home: "Cincinnati Bengals", winner: "Cincinnati Bengals" }
-    ];
+    // Captured from Week 10 results table (raw wins)
+    const WEEK_10_WINS = {
+      "V": 9,
+      "Abby": 9,
+      "Mom": 10,
+      "Dad": 10,
+      "Hayden": 8,
+      "Hunter": 6,
+      "Adam": 9
+    };
 
+    // Total Season Wins after Week 10
+    const INITIAL_PRIOR_WINS = {
+      "V": 98,
+      "Abby": 96,
+      "Mom": 96,
+      "Dad": 95,
+      "Hayden": 89,
+      "Adam": 86,
+      "Hunter": 81
+    };
+
+    // Ranking after Week 10
+    const INITIAL_PREV_RANKS = {
+      "V": 1,
+      "Abby": 2,
+      "Mom": 2,
+      "Dad": 4,
+      "Hayden": 5,
+      "Adam": 6,
+      "Hunter": 7
+    };
+
+    // Sunday-only fallback matchups (Thursday/Monday games excluded)
     const FALLBACK_MATCHUPS_BY_WEEK = {
-      10: WEEK_10_RESULTS.map(m => ({
-        away: m.away,
-        home: m.home,
-        kickoff: "2026-11-15T18:00:00Z"
-      })),
+      10: [
+        { away: "New England Patriots", home: "Detroit Lions", kickoff: "2026-11-15T14:30:00Z" },
+        { away: "Buffalo Bills", home: "New York Jets", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Miami Dolphins", home: "Indianapolis Colts", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Kansas City Chiefs", home: "Atlanta Falcons", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Minnesota Vikings", home: "Green Bay Packers", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Jacksonville Jaguars", home: "Tennessee Titans", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Houston Texans", home: "Cleveland Browns", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Carolina Panthers", home: "New Orleans Saints", kickoff: "2026-11-15T18:00:00Z" },
+        { away: "Los Angeles Rams", home: "Arizona Cardinals", kickoff: "2026-11-15T21:05:00Z" },
+        { away: "Seattle Seahawks", home: "Las Vegas Raiders", kickoff: "2026-11-15T21:05:00Z" },
+        { away: "San Francisco 49ers", home: "Dallas Cowboys", kickoff: "2026-11-15T21:25:00Z" }
+      ],
       11: [
         { away: "New Orleans Saints", home: "Chicago Bears", kickoff: "2026-11-22T18:00:00Z" },
         { away: "Tampa Bay Buccaneers", home: "Detroit Lions", kickoff: "2026-11-22T18:00:00Z" },
@@ -713,50 +752,40 @@
       ]
     };
 
-    // Captured post-Week 10 standings & Week 10 win counts
-    const INITIAL_PRIOR_WINS = {
-      "V": 98,
-      "Abby": 96,
-      "Mom": 96,
-      "Dad": 95,
-      "Hayden": 89,
-      "Adam": 86,
-      "Hunter": 81
-    };
+    function getWeekMultiplier(weekNum) {
+      return DOUBLE_POINT_WEEKS.has(Number(weekNum)) ? 2 : 1;
+    }
 
-    const INITIAL_PREV_RANKS = {
-      "V": 1,
-      "Abby": 2,
-      "Mom": 2,
-      "Dad": 4,
-      "Hayden": 5,
-      "Adam": 6,
-      "Hunter": 7
-    };
-
-    const WEEK_10_CAPTURED_WINS = {
-      "V": 9,
-      "Abby": 9,
-      "Mom": 10,
-      "Dad": 10,
-      "Hayden": 8,
-      "Adam": 9,
-      "Hunter": 6
-    };
-
-    function isSundayGame(game) {
-      if (!game || !game.kickoff) return true;
-      const ms = Date.parse(game.kickoff);
-      if (Number.isNaN(ms)) return true;
+    function getETDateAndWeekday(isoOrMs) {
+      const ms = typeof isoOrMs === "number" ? isoOrMs : Date.parse(isoOrMs);
+      if (Number.isNaN(ms)) return null;
+      const dateStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: GAME_TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(new Date(ms));
       const weekday = new Intl.DateTimeFormat("en-US", {
         timeZone: GAME_TIMEZONE,
         weekday: "short"
       }).format(new Date(ms));
-      return weekday === "Sun";
+      return { dateStr, weekday };
     }
 
-    function filterSundayOnly(games) {
-      return (games || []).filter(isSundayGame);
+    function isSundayGame(game, weekNum = null) {
+      if (!game || !game.kickoff) return true;
+      const info = getETDateAndWeekday(game.kickoff);
+      if (!info) return true;
+      if (info.weekday !== "Sun") return false;
+      if (weekNum) {
+        const meta = NFL_WEEKS.find(w => w.week === Number(weekNum));
+        if (meta && meta.sunday && info.dateStr !== meta.sunday) return false;
+      }
+      return true;
+    }
+
+    function filterSundayOnly(games, weekNum = null) {
+      return (games || []).filter(g => isSundayGame(g, weekNum));
     }
 
     function initThemeSelector() {
@@ -779,19 +808,32 @@
     }
 
     function detectCurrentNFLWeek() {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const match = NFL_WEEKS.find(w => todayStr >= w.start && todayStr <= w.end);
-      return match ? match.week : 11;
+      const todayET = new Intl.DateTimeFormat("en-CA", {
+        timeZone: GAME_TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(new Date());
+
+      for (let i = 0; i < NFL_WEEKS.length; i++) {
+        const currentSun = NFL_WEEKS[i].sunday;
+        const nextSun = NFL_WEEKS[i + 1]?.sunday || "2027-01-17";
+        if (todayET >= currentSun && todayET < nextSun) {
+          return NFL_WEEKS[i].week;
+        }
+      }
+      return todayET < NFL_WEEKS[0].sunday ? 1 : 11;
     }
 
     function loadAppState() {
       const fallbackWeek = detectCurrentNFLWeek();
       const defaultState = {
         activeWeek: fallbackWeek,
+        week10Wins: { ...WEEK_10_WINS },
         priorWins: { ...INITIAL_PRIOR_WINS },
         prevRanks: { ...INITIAL_PREV_RANKS },
-        week10Wins: { ...WEEK_10_CAPTURED_WINS },
-        picksByWeek: {}
+        picksByWeek: {},
+        autoRolledWeeks: {}
       };
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -800,10 +842,11 @@
         return {
           ...defaultState,
           ...parsed,
+          week10Wins: { ...WEEK_10_WINS, ...(parsed.week10Wins || {}) },
           priorWins: { ...INITIAL_PRIOR_WINS, ...(parsed.priorWins || {}) },
           prevRanks: { ...INITIAL_PREV_RANKS, ...(parsed.prevRanks || {}) },
-          week10Wins: { ...WEEK_10_CAPTURED_WINS, ...(parsed.week10Wins || {}) },
-          picksByWeek: parsed.picksByWeek || {}
+          picksByWeek: parsed.picksByWeek || {},
+          autoRolledWeeks: parsed.autoRolledWeeks || {}
         };
       } catch {
         return defaultState;
@@ -887,6 +930,45 @@
       }
     }
 
+    // Rolls forward on Monday at 12:01 AM ET (Sunday games only)
+    function shouldAutoRolloverNow(weekNum) {
+      if (weekNum >= 18) return false;
+      if (appState.autoRolledWeeks[weekNum]) return false;
+
+      const weekMeta = NFL_WEEKS.find(w => w.week === weekNum);
+      if (!weekMeta || !weekMeta.sunday) return false;
+
+      const now = new Date();
+      const etDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: GAME_TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(now);
+      const weekday = new Intl.DateTimeFormat("en-US", {
+        timeZone: GAME_TIMEZONE,
+        weekday: "short"
+      }).format(now);
+      const timeStr = new Intl.DateTimeFormat("en-GB", {
+        timeZone: GAME_TIMEZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).format(now);
+
+      const [hh, mm] = timeStr.split(":").map(Number);
+      const minutesSinceMidnightET = hh * 60 + mm;
+
+      // Monday after that week's Sunday (e.g. Nov 23, 2026 at 00:01 AM ET for Week 11 Sunday Nov 22)
+      if (etDate > weekMeta.sunday) {
+        if (weekday === AUTO_ROLLOVER_WEEKDAY_SHORT) {
+          return minutesSinceMidnightET >= AUTO_ROLLOVER_MIN_MINUTES_ET;
+        }
+        return true;
+      }
+      return false;
+    }
+
     async function registerKickoffsWithBackend(weekNum) {
       if (!SHARED_API_URL || !currentWeekMatchups.length) return;
       const slateLockMs = getSundaySlateLockMs();
@@ -903,6 +985,7 @@
         body: JSON.stringify({
           action: "registerKickoffs",
           week: weekNum,
+          sundayOnly: true,
           kickoffs: kickoffsMap
         })
       });
@@ -913,6 +996,18 @@
       const res = await fetch(`${SHARED_API_URL}?week=${encodeURIComponent(weekNum)}&_t=${Date.now()}`);
       if (!res.ok) throw new Error(`Backend HTTP ${res.status}`);
       return await res.json();
+    }
+
+    async function syncSnapshotToBackend(payload) {
+      if (!SHARED_API_URL) return;
+      await fetch(SHARED_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "saveSnapshot",
+          ...payload
+        })
+      });
     }
 
     async function verifyPinWithBackend(player, pin) {
@@ -954,9 +1049,10 @@
 
     function initWeekSelector() {
       const sel = document.getElementById("week-select");
-      sel.innerHTML = NFL_WEEKS.map(w =>
-        `<option value="${w.week}" ${w.week === appState.activeWeek ? "selected" : ""}>Week ${w.week}</option>`
-      ).join("");
+      sel.innerHTML = NFL_WEEKS.map(w => {
+        const multTag = DOUBLE_POINT_WEEKS.has(w.week) ? " (2X)" : "";
+        return `<option value="${w.week}" ${w.week === appState.activeWeek ? "selected" : ""}>Week ${w.week}${multTag}</option>`;
+      }).join("");
     }
 
     function initFilterButtons() {
@@ -1082,14 +1178,14 @@
             };
           });
 
-          const sundaysOnly = filterSundayOnly(parsedGames);
+          const sundaysOnly = filterSundayOnly(parsedGames, weekNum);
           if (sundaysOnly.length > 0) return sundaysOnly;
         }
       } catch (err) {
         console.warn("Schedule fetch fallback:", err);
       }
 
-      const fallback = filterSundayOnly(FALLBACK_MATCHUPS_BY_WEEK[weekNum] || FALLBACK_MATCHUPS_BY_WEEK[11]);
+      const fallback = filterSundayOnly(FALLBACK_MATCHUPS_BY_WEEK[weekNum] || FALLBACK_MATCHUPS_BY_WEEK[11], weekNum);
       return fallback.map(m => ({
         away: m.away,
         home: m.home,
@@ -1108,28 +1204,39 @@
       }));
     }
 
+    function updateDoubleWeekUI(weekNum) {
+      const isDouble = DOUBLE_POINT_WEEKS.has(weekNum);
+      document.getElementById("double-week-badge").classList.toggle("hidden", !isDouble);
+      document.getElementById("double-week-banner-tag").classList.toggle("hidden", !isDouble);
+      document.getElementById("week-wins-header").innerText = isDouble ? "Sun Pts (2X)" : "Sun Wins";
+      document.getElementById("banner-week-title").innerText = isDouble
+        ? `Week ${weekNum} Sunday Matchups & Standings (2X Double Points)`
+        : `Week ${weekNum} Sunday Matchups & Standings`;
+    }
+
     async function syncWeekData() {
       const icon = document.getElementById("refresh-icon");
       icon.classList.add("fa-spin");
 
-      const weekMeta = NFL_WEEKS.find(w => w.week === appState.activeWeek) || NFL_WEEKS[10];
+      const weekNum = appState.activeWeek;
+      const weekMeta = NFL_WEEKS.find(w => w.week === weekNum) || NFL_WEEKS[10];
       document.getElementById("active-week-badge").innerHTML =
-        `<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> WEEK ${appState.activeWeek}`;
+        `<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> WEEK ${weekNum}`;
       document.getElementById("week-date-range").innerText = weekMeta.label;
-      document.getElementById("banner-week-title").innerText = `Week ${appState.activeWeek} Sunday Matchups & Standings`;
       document.getElementById("matchups-section-title").innerHTML =
-        `<i class="fa-solid fa-list-check" style="color: var(--accent-2);"></i> Week ${appState.activeWeek} Sunday Matchups & Picks`;
-      document.getElementById("modal-title").innerText = `Submit Week ${appState.activeWeek} Sunday Picks`;
+        `<i class="fa-solid fa-list-check" style="color: var(--accent-2);"></i> Week ${weekNum} Sunday Matchups & Picks${DOUBLE_POINT_WEEKS.has(weekNum) ? " • 2X Points" : ""}`;
+      document.getElementById("modal-title").innerText = `Submit Week ${weekNum} Sunday Picks${DOUBLE_POINT_WEEKS.has(weekNum) ? " (2X)" : ""}`;
+      updateDoubleWeekUI(weekNum);
 
-      currentWeekMatchups = await fetchWeekScheduleAndScores(appState.activeWeek);
+      currentWeekMatchups = await fetchWeekScheduleAndScores(weekNum);
 
       if (SHARED_API_URL) {
         try {
-          await registerKickoffsWithBackend(appState.activeWeek);
-          const sharedData = await fetchSharedWeekPicks(appState.activeWeek);
+          await registerKickoffsWithBackend(weekNum);
+          const sharedData = await fetchSharedWeekPicks(weekNum);
           if (sharedData) {
             if (sharedData.picks) {
-              appState.picksByWeek[appState.activeWeek] = sharedData.picks;
+              appState.picksByWeek[weekNum] = sharedData.picks;
               saveAppState();
             }
             if (sharedData.pinStatus) {
@@ -1139,6 +1246,12 @@
         } catch (err) {
           console.warn("Shared sync issue:", err);
         }
+      }
+
+      if (shouldAutoRolloverNow(weekNum)) {
+        await lockWeekSnapshot({ manual: false, auto: true });
+        icon.classList.remove("fa-spin");
+        return;
       }
 
       updateLockCountdownUI();
@@ -1154,24 +1267,31 @@
     }
 
     function computeWeekStats() {
-      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      const weekNum = appState.activeWeek;
+      const multiplier = getWeekMultiplier(weekNum);
+      const weekPicks = appState.picksByWeek[weekNum] || {};
       const slateLocked = isSlateLocked();
       const stats = {};
       const loneWolves = [];
       let playersWithAnyPick = 0;
 
       PLAYERS.forEach(p => {
-        const basePrior = appState.priorWins[p] ?? INITIAL_PRIOR_WINS[p] ?? 0;
-        const w10Wins = appState.week10Wins?.[p] ?? WEEK_10_CAPTURED_WINS[p] ?? 0;
+        const isWeek10 = weekNum === 10;
         stats[p] = {
-          priorWins: appState.activeWeek === 10 ? Math.max(0, basePrior - w10Wins) : basePrior,
+          priorWins: isWeek10
+            ? ((appState.priorWins[p] || 0) - (appState.week10Wins[p] || 0))
+            : (appState.priorWins[p] || 0),
           prevRank: appState.prevRanks[p] || PLAYERS.length,
-          weekWins: appState.activeWeek === 10 ? w10Wins : 0,
+          rawCorrect: isWeek10 ? (appState.week10Wins[p] || 0) : 0,
+          weekWins: isWeek10 ? (appState.week10Wins[p] || 0) : 0,
+          multiplier,
           pickedCount: 0
         };
       });
 
-      currentWeekMatchups.forEach(game => {
+      // Only iterate over Sunday matchups in `currentWeekMatchups`
+      const sundayGames = filterSundayOnly(currentWeekMatchups, weekNum);
+      sundayGames.forEach(game => {
         const key = getMatchupKey(game.away, game.home);
         const gamePicks = weekPicks[key] || {};
         const counts = {};
@@ -1185,8 +1305,9 @@
               counts[pick] = (counts[pick] || 0) + 1;
               entries.push({ player: p, pick });
 
-              if (appState.activeWeek !== 10 && !game.isTied && game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
-                stats[p].weekWins += 1;
+              if (!game.isTied && game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
+                stats[p].rawCorrect += 1;
+                stats[p].weekWins += multiplier;
               }
             }
           }
@@ -1205,4 +1326,527 @@
         if (stats[p].pickedCount > 0) playersWithAnyPick += 1;
       });
 
-      document.getElementById("completion
+      document.getElementById("completion-pill").innerText =
+        `${playersWithAnyPick} / ${PLAYERS.length} Players Picked (Week ${weekNum} Sun)`;
+
+      return { stats, loneWolves, multiplier };
+    }
+
+    function renderAll() {
+      const { stats, loneWolves, multiplier } = computeWeekStats();
+      renderLeaderboard(stats, multiplier);
+      renderBadges(stats, loneWolves, multiplier);
+      renderMatchupsTable();
+    }
+
+    function renderLeaderboard(stats, multiplier) {
+      const tbody = document.getElementById("leaderboard-body");
+      tbody.innerHTML = "";
+
+      const ranked = [...PLAYERS]
+        .map(player => ({
+          player,
+          priorWins: stats[player].priorWins,
+          prevRank: stats[player].prevRank,
+          rawCorrect: stats[player].rawCorrect,
+          weekWins: stats[player].weekWins,
+          totalWins: stats[player].priorWins + stats[player].weekWins
+        }))
+        .sort((a, b) => b.totalWins - a.totalWins || a.prevRank - b.prevRank);
+
+      const lowestTotal = ranked[ranked.length - 1]?.totalWins ?? 0;
+
+      let currentRank = 1;
+      ranked.forEach((row, idx) => {
+        if (idx > 0 && row.totalWins < ranked[idx - 1].totalWins) {
+          currentRank = idx + 1;
+        }
+
+        const rankDelta = row.prevRank - currentRank;
+        let moveBadge = `<span class="text-xs font-bold text-sub px-2 py-0.5 rounded-full border border-main" style="background: var(--bg-pill);">— 0</span>`;
+        if (rankDelta > 0) {
+          moveBadge = `<span class="text-xs font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">▲ +${rankDelta}</span>`;
+        } else if (rankDelta < 0) {
+          moveBadge = `<span class="text-xs font-black text-rose-400 bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 rounded-full">▼ ${rankDelta}</span>`;
+        }
+
+        let rankBadge = `<span class="text-xs font-bold text-sub">#${currentRank}</span>`;
+        if (currentRank === 1) {
+          rankBadge = `<span class="accent-btn text-xs font-black px-2.5 py-1 rounded-full inline-block">1ST</span>`;
+        } else if (currentRank === 2) {
+          rankBadge = `<span class="bg-slate-500/25 text-main text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">2ND</span>`;
+        } else if (currentRank === 3) {
+          rankBadge = `<span class="bg-amber-500/20 text-amber-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">3RD</span>`;
+        } else if (row.totalWins === lowestTotal && ranked.length > 1) {
+          rankBadge = `<span class="bg-rose-500/15 text-rose-400 text-xs font-extrabold px-2.5 py-1 rounded-full inline-block">LAST</span>`;
+        }
+
+        const weekDeltaText = multiplier > 1 && row.weekWins > 0
+          ? `+${row.weekWins} <span class="text-[10px] font-black text-amber-400">(${row.rawCorrect}×2)</span>`
+          : `+${row.weekWins}`;
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:opacity-95 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-3 sm:px-4 text-center">${rankBadge}</td>
+          <td class="py-3 px-3 sm:px-4 text-center">${moveBadge}</td>
+          <td class="py-3 px-4 font-bold text-main text-sm sm:text-base">${row.player}</td>
+          <td class="py-3 px-3 text-center text-sub font-semibold">#${row.prevRank}</td>
+          <td class="py-3 px-3 text-center text-sub">${row.priorWins}</td>
+          <td class="py-3 px-3 text-center font-extrabold text-main">${weekDeltaText}</td>
+          <td class="py-3 px-4 text-center font-black text-main text-base sm:text-lg">${row.totalWins}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderBadges(stats, loneWolves, multiplier) {
+      const container = document.getElementById("badges-container");
+      const sortedSeason = [...PLAYERS].sort((a, b) => (stats[b].priorWins + stats[b].weekWins) - (stats[a].priorWins + stats[a].weekWins));
+      const leader = sortedSeason[0];
+      const leaderPts = stats[leader].priorWins + stats[leader].weekWins;
+
+      const sortedWeek = [...PLAYERS].sort((a, b) => stats[b].weekWins - stats[a].weekWins);
+      const weekTop = sortedWeek[0];
+
+      const biggestClimber = [...PLAYERS].sort((a, b) => {
+        const rankA = sortedSeason.indexOf(a) + 1;
+        const rankB = sortedSeason.indexOf(b) + 1;
+        return (stats[b].prevRank - rankB) - (stats[a].prevRank - rankA);
+      })[0];
+
+      const loneWolfHtml = loneWolves.length
+        ? loneWolves.slice(0, 3).map(lw => `<b>${lw.player}</b> (${lw.pick})`).join(", ")
+        : "Reveals after Sunday lock";
+
+      container.innerHTML = `
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-crown text-xl text-amber-400"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Current Leader</div>
+            <div class="text-sm sm:text-base font-extrabold text-main">${leader} (${leaderPts} Wins)</div>
+          </div>
+        </div>
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-arrow-trend-up text-xl text-emerald-400"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Week ${appState.activeWeek} Sun Top (${multiplier}×) / Mover</div>
+            <div class="text-sm sm:text-base font-extrabold text-main">${weekTop} (+${stats[weekTop].weekWins}) • ${biggestClimber}</div>
+          </div>
+        </div>
+        <div class="border border-main rounded-xl p-3.5 flex items-center space-x-3" style="background: var(--bg-pill);">
+          <i class="fa-solid fa-user-secret text-xl text-sub"></i>
+          <div>
+            <div class="text-xs text-sub font-semibold">Solo Sunday Picks</div>
+            <div class="text-xs font-medium text-main mt-0.5">${loneWolfHtml}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMatchupsTable() {
+      const headRow = document.getElementById("table-head-row");
+      const tbody = document.getElementById("matchups-body");
+      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      const visiblePlayers = PLAYERS.filter(p => selectedPlayersFilter.has(p));
+      const slateLocked = isSlateLocked();
+
+      document.getElementById("visibility-helper-text").innerText =
+        "Sunday matchups only • All picks stay hidden until 1 hour before the first Sunday kickoff.";
+
+      headRow.innerHTML = `
+        <th class="py-3.5 px-3 w-[200px] sm:w-[250px] sticky-col z-20">Matchup</th>
+        <th class="py-3.5 px-3 w-40 text-center">Score / Status / Win %</th>
+        <th class="py-3.5 px-2 w-28 text-center">Consensus</th>
+        ${visiblePlayers.map(p => `<th class="py-3.5 px-2 text-center w-24">${p}</th>`).join("")}
+      `;
+
+      tbody.innerHTML = "";
+
+      currentWeekMatchups.forEach(game => {
+        const key = getMatchupKey(game.away, game.home);
+        const gamePicks = weekPicks[key] || {};
+
+        const counts = {};
+        PLAYERS.forEach(p => {
+          if (gamePicks[p]) counts[gamePicks[p]] = (counts[gamePicks[p]] || 0) + 1;
+        });
+        const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+        let consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-sub" style="background: var(--bg-pill);">Open</span>`;
+        if (sortedCounts.length > 0) {
+          const totalSubmitted = Object.keys(gamePicks).length;
+          if (!slateLocked) {
+            consensusBadge = `<span class="bg-amber-500/15 text-amber-400 border border-amber-500/35 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">${totalSubmitted}/${PLAYERS.length} In</span>`;
+          } else {
+            const [topTeam, topCount] = sortedCounts[0];
+            if (totalSubmitted === PLAYERS.length && sortedCounts.length === 1) {
+              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap accent-btn">${topTeam.split(" ").pop()} ${topCount}-0</span>`;
+            } else {
+              const secondCount = sortedCounts[1]?.[1] || 0;
+              consensusBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border border-main text-main" style="background: var(--bg-pill);">${topCount}-${secondCount} Split</span>`;
+            }
+          }
+        }
+
+        let statusBadgeClass = "border border-main text-sub";
+        let liveDot = "";
+        if (game.statusState === "in") {
+          statusBadgeClass = "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold";
+          liveDot = `<span class="live-pulse mr-1"></span>`;
+        } else if (game.statusState === "post") {
+          statusBadgeClass = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold";
+        }
+
+        const awayLogo = game.awayLogo ? `<img src="${game.awayLogo}" class="w-4 h-4 object-contain inline-block mr-1" alt="">` : "";
+        const homeLogo = game.homeLogo ? `<img src="${game.homeLogo}" class="w-4 h-4 object-contain inline-block ml-1" alt="">` : "";
+
+        const playerCells = visiblePlayers.map(player => {
+          const pick = gamePicks[player];
+          if (!pick) {
+            return `<td class="py-3 px-1.5 text-center"><div class="py-1.5 px-1.5 pick-empty text-xs">—</div></td>`;
+          }
+
+          if (!slateLocked) {
+            return `
+              <td class="py-3 px-1.5 text-center">
+                <div class="py-1.5 px-1.5 pick-hidden text-[10px] sm:text-xs flex items-center justify-center gap-1 whitespace-nowrap">
+                  <i class="fa-solid fa-lock text-[9px]"></i><span>Hidden</span>
+                </div>
+              </td>
+            `;
+          }
+
+          let cls = "pick-neutral";
+          let icon = "";
+          if (game.statusState === "in" || game.statusState === "post") {
+            if (game.isTied) {
+              cls = "pick-tied";
+              icon = `<i class="fa-solid fa-minus text-[9px] ml-1 opacity-70"></i>`;
+            } else if (game.leadingTeam && checkTeamMatch(game.leadingTeam, pick)) {
+              cls = "pick-leading";
+              icon = game.statusState === "post" ? `<i class="fa-solid fa-check ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-up ml-1"></i>`;
+            } else if (game.losingTeam && checkTeamMatch(game.losingTeam, pick)) {
+              cls = "pick-losing";
+              icon = game.statusState === "post" ? `<i class="fa-solid fa-xmark ml-1 text-[10px]"></i>` : `<i class="fa-solid fa-caret-down ml-1"></i>`;
+            }
+          }
+
+          const shortLabel = pick.split(" ").pop();
+          return `
+            <td class="py-3 px-1.5 text-center">
+              <div class="py-1.5 px-1.5 ${cls} text-[11px] sm:text-xs flex items-center justify-center whitespace-nowrap" title="${pick}">
+                <span>${shortLabel}</span>${icon}
+              </div>
+            </td>
+          `;
+        }).join("");
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:opacity-95 transition-colors";
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-medium text-main sticky-col">
+            <div class="text-xs sm:text-sm leading-tight space-y-1">
+              <div class="flex items-center">${awayLogo}<span class="font-semibold truncate">${game.away}</span></div>
+              <div class="text-[10px] text-sub font-bold uppercase tracking-wider pl-4">at</div>
+              <div class="flex items-center"><span class="font-semibold truncate">${game.home}</span>${homeLogo}</div>
+            </div>
+          </td>
+          <td class="py-3 px-3 text-center">
+            <div class="font-black text-main text-sm sm:text-base">${game.awayScore} - ${game.homeScore}</div>
+            <div class="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full ${statusBadgeClass} mt-0.5 whitespace-nowrap">
+              ${liveDot}${game.statusDetail}
+            </div>
+            <div class="w-full h-1.5 rounded-full overflow-hidden flex mt-1.5 border border-main">
+              <div class="h-full" style="width:${game.awayWinPct}%; background: var(--accent);"></div>
+              <div class="h-full opacity-55" style="width:${game.homeWinPct}%; background: var(--accent-2);"></div>
+            </div>
+          </td>
+          <td class="py-3 px-2 text-center">${consensusBadge}</td>
+          ${playerCells}
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openPickerModal(initialPlayer = "Dad") {
+      if (isSlateLocked()) {
+        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
+        return;
+      }
+      modalSelectedPlayer = initialPlayer;
+      unlockedPlayerThisSession = null;
+      modalDraftPicks = {};
+      renderModalPlayerPills();
+      updatePinGateUI();
+      document.getElementById("picker-modal").classList.remove("hidden");
+    }
+
+    function closePickerModal() {
+      document.getElementById("picker-modal").classList.add("hidden");
+      unlockedPlayerThisSession = null;
+      modalDraftPicks = {};
+      document.getElementById("pin-input").value = "";
+      renderMatchupsTable();
+    }
+
+    function renderModalPlayerPills() {
+      const pills = document.getElementById("modal-player-pills");
+      pills.innerHTML = PLAYERS.map(p => {
+        const active = p === modalSelectedPlayer;
+        return `
+          <button type="button" onclick="selectModalPlayer('${p}')" class="px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+            active
+              ? "accent-btn shadow-md"
+              : "border border-main text-sub hover:text-main"
+          }" style="${active ? "" : "background: var(--bg-pill);"}">${p}</button>
+        `;
+      }).join("");
+    }
+
+    function selectModalPlayer(player) {
+      modalSelectedPlayer = player;
+      unlockedPlayerThisSession = null;
+      modalDraftPicks = {};
+      renderModalPlayerPills();
+      updatePinGateUI();
+    }
+
+    function updatePinGateUI() {
+      const isUnlocked = unlockedPlayerThisSession === modalSelectedPlayer;
+      const hasExistingPin = Boolean(remotePinStatusByPlayer[modalSelectedPlayer]);
+
+      document.getElementById("pin-player-label").innerText = modalSelectedPlayer;
+      document.getElementById("pin-mode-label").innerText = hasExistingPin ? "Enter PIN" : "Create Your PIN";
+      document.getElementById("pin-status-hint").innerText = hasExistingPin
+        ? "Enter your PIN manually to unlock"
+        : "First time picking? Enter a 4+ character PIN";
+      document.getElementById("unlock-pin-btn").innerText = hasExistingPin ? "Unlock Picks" : "Set PIN & Unlock";
+      document.getElementById("unlocked-player-name").innerText = modalSelectedPlayer;
+
+      const pinInput = document.getElementById("pin-input");
+      pinInput.value = "";
+      pinInput.placeholder = hasExistingPin ? "Enter your PIN" : "Create PIN (4+ chars)";
+      document.getElementById("pin-error-msg").classList.add("hidden");
+
+      document.getElementById("pin-gate-box").classList.toggle("hidden", isUnlocked);
+      document.getElementById("unlocked-picks-section").classList.toggle("hidden", !isUnlocked);
+      document.getElementById("clear-player-btn").classList.toggle("hidden", !isUnlocked);
+      document.getElementById("save-picks-btn").classList.toggle("hidden", !isUnlocked);
+
+      if (isUnlocked) {
+        loadDraftForPlayer(modalSelectedPlayer);
+        renderModalMatchups();
+      }
+    }
+
+    async function verifySelectedPlayerPin() {
+      const entered = (document.getElementById("pin-input").value || "").trim();
+      const errorEl = document.getElementById("pin-error-msg");
+      const unlockBtn = document.getElementById("unlock-pin-btn");
+
+      if (entered.length < 4) {
+        errorEl.innerText = "Please enter at least 4 characters for your PIN.";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+
+      unlockBtn.disabled = true;
+      errorEl.classList.add("hidden");
+
+      try {
+        const check = await verifyPinWithBackend(modalSelectedPlayer, entered);
+        if (!check.ok) {
+          errorEl.innerText = check.error || ("Incorrect PIN for " + modalSelectedPlayer + ".");
+          errorEl.classList.remove("hidden");
+          return;
+        }
+        if (check.supported) {
+          remotePinStatusByPlayer[modalSelectedPlayer] = true;
+        }
+      } catch (err) {
+        console.warn("PIN verification fallback:", err);
+      } finally {
+        unlockBtn.disabled = false;
+      }
+
+      sessionVerifiedPinByPlayer[modalSelectedPlayer] = entered;
+      unlockedPlayerThisSession = modalSelectedPlayer;
+      document.getElementById("pin-input").value = "";
+      updatePinGateUI();
+      renderMatchupsTable();
+    }
+
+    function loadDraftForPlayer(player) {
+      const weekPicks = appState.picksByWeek[appState.activeWeek] || {};
+      modalDraftPicks = {};
+      currentWeekMatchups.forEach(g => {
+        const key = getMatchupKey(g.away, g.home);
+        const existing = weekPicks[key]?.[player];
+        if (existing && existing !== "__HIDDEN__") {
+          modalDraftPicks[key] = existing;
+        }
+      });
+    }
+
+    function chooseTeamInModal(matchupKey, teamName) {
+      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
+      modalDraftPicks[matchupKey] = teamName;
+      renderModalMatchups();
+    }
+
+    function clearCurrentPlayerPicks() {
+      if (isSlateLocked() || unlockedPlayerThisSession !== modalSelectedPlayer) return;
+      currentWeekMatchups.forEach(g => {
+        delete modalDraftPicks[getMatchupKey(g.away, g.home)];
+      });
+      renderModalMatchups();
+    }
+
+    function renderModalMatchups() {
+      const list = document.getElementById("modal-matchups-list");
+      const locked = isSlateLocked();
+      const mult = getWeekMultiplier(appState.activeWeek);
+      let pickedCount = 0;
+
+      list.innerHTML = currentWeekMatchups.map(g => {
+        const key = getMatchupKey(g.away, g.home);
+        const chosen = modalDraftPicks[key] || "";
+        if (chosen) pickedCount += 1;
+
+        const awaySelected = chosen === g.away;
+        const homeSelected = chosen === g.home;
+
+        return `
+          <div class="border border-main rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${locked ? "opacity-60" : ""}" style="background: var(--bg-pill);">
+            <div class="text-xs font-bold text-main">
+              <span>${g.away}</span> <span class="text-sub">@</span> <span>${g.home}</span>
+              <span class="block text-[10px] text-sub font-normal">${locked ? "Locked (1h before 1st Sunday game)" : `${g.statusDetail}${mult > 1 ? " • Worth 2 pts" : ""}`}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:w-72 shrink-0">
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.away.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+                awaySelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
+              }" style="${awaySelected ? "" : "background: var(--bg-page);"}">${g.away}</button>
+              <button type="button" ${locked ? "disabled" : ""} onclick="chooseTeamInModal('${key.replace(/'/g, "\\'")}', '${g.home.replace(/'/g, "\\'")}')" class="px-2.5 py-2 rounded-lg text-xs font-extrabold truncate transition-all ${locked ? "cursor-not-allowed" : "cursor-pointer"} ${
+                homeSelected ? "accent-btn ring-2 ring-amber-400" : "border border-main text-main"
+              }" style="${homeSelected ? "" : "background: var(--bg-page);"}">${g.home}</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("modal-pick-progress").innerText =
+        `${pickedCount} / ${currentWeekMatchups.length} selected`;
+    }
+
+    async function saveCurrentPlayerPicks() {
+      if (isSlateLocked()) {
+        alert("Sunday picks are locked (1 hour before the first Sunday kickoff).");
+        return;
+      }
+      if (unlockedPlayerThisSession !== modalSelectedPlayer) return;
+
+      const pin = sessionVerifiedPinByPlayer[modalSelectedPlayer] || "";
+      const allDraftPicks = {};
+      currentWeekMatchups.forEach(g => {
+        const key = getMatchupKey(g.away, g.home);
+        allDraftPicks[key] = modalDraftPicks[key] || "";
+      });
+
+      const result = await submitPicksToBackend(
+        appState.activeWeek,
+        modalSelectedPlayer,
+        pin,
+        allDraftPicks
+      );
+
+      if (!result || !result.ok) {
+        alert(result?.error || "Could not save picks.");
+        return;
+      }
+
+      if (!appState.picksByWeek[appState.activeWeek]) {
+        appState.picksByWeek[appState.activeWeek] = {};
+      }
+      const weekPicks = appState.picksByWeek[appState.activeWeek];
+      Object.keys(allDraftPicks).forEach(key => {
+        if (!weekPicks[key]) weekPicks[key] = {};
+        if (allDraftPicks[key]) {
+          weekPicks[key][modalSelectedPlayer] = allDraftPicks[key];
+        } else {
+          delete weekPicks[key][modalSelectedPlayer];
+        }
+      });
+      saveAppState();
+
+      await syncWeekData();
+      delete sessionVerifiedPinByPlayer[modalSelectedPlayer];
+      unlockedPlayerThisSession = null;
+      closePickerModal();
+    }
+
+    async function lockWeekSnapshot(options = {}) {
+      const { manual = false, auto = false } = options;
+      const completedWeek = appState.activeWeek;
+      const { stats } = computeWeekStats();
+
+      const ranked = [...PLAYERS]
+        .map(p => ({
+          player: p,
+          total: stats[p].priorWins + stats[p].weekWins
+        }))
+        .sort((a, b) => b.total - a.total || (appState.prevRanks[a.player] || 99) - (appState.prevRanks[b.player] || 99));
+
+      const nextPriorWins = { ...appState.priorWins };
+      const nextPrevRanks = { ...appState.prevRanks };
+
+      let rank = 1;
+      ranked.forEach((entry, idx) => {
+        if (idx > 0 && entry.total < ranked[idx - 1].total) rank = idx + 1;
+        nextPriorWins[entry.player] = entry.total;
+        nextPrevRanks[entry.player] = rank;
+      });
+
+      const nextWeek = Math.min(18, completedWeek + 1);
+      appState.priorWins = nextPriorWins;
+      appState.prevRanks = nextPrevRanks;
+      if (auto) {
+        appState.autoRolledWeeks[completedWeek] = new Date().toISOString();
+      }
+      if (completedWeek < 18) {
+        appState.activeWeek = nextWeek;
+      }
+      saveAppState();
+
+      try {
+        await syncSnapshotToBackend({
+          completedWeek,
+          nextWeek: appState.activeWeek,
+          sundayOnly: true,
+          priorWins: nextPriorWins,
+          prevRanks: nextPrevRanks,
+          autoRolled: Boolean(auto)
+        });
+      } catch (err) {
+        console.warn("Snapshot backend sync warning:", err);
+      }
+
+      initWeekSelector();
+      await syncWeekData();
+      if (manual) {
+        alert(`Week ${completedWeek} Sunday snapshot saved! Rolled forward to Week ${appState.activeWeek}.`);
+      }
+    }
+
+    initThemeSelector();
+    initWeekSelector();
+    initFilterButtons();
+    syncWeekData();
+    setInterval(() => {
+      updateLockCountdownUI();
+      renderMatchupsTable();
+    }, 15000);
+    setInterval(syncWeekData, 30000);
+  </script>
+</body>
+</html>
